@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Адаптивное управление светофором</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Система адаптивного управления светофором</h1>
+
+    {% if message %}
+        <p style="color: green; font-weight: bold;">{{ message }}</p>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data">
+        <div class="intersection-container">
+            <img src="{{ url_for('static', filename='images/intersection.png') }}" class="intersection-bg" alt="Перекрёсток">
+
+            <!-- Верх -->
+            <div class="video-slot top">
+                <label for="top">Верхняя камера</label>
+                <input type="file" name="top" id="top" accept="video/*">
+                <button type="button" class="clear-btn" onclick="clearVideo('top')">×</button>
+                <img src="{{ url_for('video_feed', direction='top') }}" width="180">
+                {% if results and results.top %}
+                    <video controls width="180">
+                        <source src="{{ results.top.video_url }}" type="video/mp4">
+                    </video>
+                    <p>Макс. машин: {{ results.top.stats.max_vehicles }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Низ -->
+            <div class="video-slot bottom">
+                <label for="bottom">Нижняя камера</label>
+                <input type="file" name="bottom" id="bottom" accept="video/*">
+                <button type="button" class="clear-btn" onclick="clearVideo('bottom')">×</button>
+                <img src="{{ url_for('video_feed', direction='bottom') }}" width="180">
+                {% if results and results.bottom %}
+                    <video controls width="180">
+                        <source src="{{ results.bottom.video_url }}" type="video/mp4">
+                    </video>
+                    <p>Макс. машин: {{ results.bottom.stats.max_vehicles }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Лево -->
+            <div class="video-slot left">
+                <label for="left">Левая камера</label>
+                <input type="file" name="left" id="left" accept="video/*">
+                <button type="button" class="clear-btn" onclick="clearVideo('left')">×</button>
+                <img src="{{ url_for('video_feed', direction='left') }}" width="180">
+                {% if results and results.left %}
+                    <video controls width="180">
+                        <source src="{{ results.left.video_url }}" type="video/mp4">
+                    </video>
+                    <p>Макс. машин: {{ results.left.stats.max_vehicles }}</p>
+                {% endif %}
+            </div>
+
+            <!-- Право -->
+            <div class="video-slot right">
+                <label for="right">Правая камера</label>
+                <input type="file" name="right" id="right" accept="video/*">
+                <button type="button" class="clear-btn" onclick="clearVideo('right')">×</button>
+                <img src="{{ url_for('video_feed', direction='right') }}" width="180">
+                {% if results and results.right %}
+                    <video controls width="180">
+                        <source src="{{ results.right.video_url }}" type="video/mp4">
+                    </video>
+                    <p>Макс. машин: {{ results.right.stats.max_vehicles }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="buttons">
+            <button type="submit">Запустить обработку</button>
+        </div>
+    </form>
+
+    <script>
+    function clearVideo(slotId) {
+        const fileInput = document.getElementById(slotId);
+        fileInput.value = "";  // очищаем выбранный файл
+    }   
+    </script>
+    
+</body>
+</html>
