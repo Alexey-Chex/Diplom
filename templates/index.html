@@ -16,59 +16,55 @@
         <div class="intersection-container">
             <img src="{{ url_for('static', filename='images/intersection.png') }}" class="intersection-bg" alt="Перекрёсток">
 
-            <!-- Верх -->
             <div class="video-slot top">
                 <label for="top">Верхняя камера</label>
                 <input type="file" name="top" id="top" accept="video/*">
-                <button type="button" class="clear-btn" onclick="clearVideo('top')">×</button>
-                <img src="{{ url_for('video_feed', direction='top') }}" width="180">
-                {% if results and results.top %}
-                    <video controls width="180">
-                        <source src="{{ results.top.video_url }}" type="video/mp4">
-                    </video>
-                    <p>Макс. машин: {{ results.top.stats.max_vehicles }}</p>
+
+                {% if processed and available_streams.top %}
+                    <img id="top-preview" class="stream-frame" src="{{ url_for('video_feed', direction='top') }}" alt="Поток top">
+                    <p id="top-info">Машин: 0</p>
+                {% else %}
+                    <div id="top-preview" class="empty-preview">Видео не выбрано</div>
+                    <p id="top-info"></p>
                 {% endif %}
             </div>
 
-            <!-- Низ -->
             <div class="video-slot bottom">
                 <label for="bottom">Нижняя камера</label>
                 <input type="file" name="bottom" id="bottom" accept="video/*">
-                <button type="button" class="clear-btn" onclick="clearVideo('bottom')">×</button>
-                <img src="{{ url_for('video_feed', direction='bottom') }}" width="180">
-                {% if results and results.bottom %}
-                    <video controls width="180">
-                        <source src="{{ results.bottom.video_url }}" type="video/mp4">
-                    </video>
-                    <p>Макс. машин: {{ results.bottom.stats.max_vehicles }}</p>
+
+                {% if processed and available_streams.bottom %}
+                    <img id="bottom-preview" class="stream-frame" src="{{ url_for('video_feed', direction='bottom') }}" alt="Поток bottom">
+                    <p id="bottom-info">Машин: 0</p>
+                {% else %}
+                    <div id="bottom-preview" class="empty-preview">Видео не выбрано</div>
+                    <p id="bottom-info"></p>
                 {% endif %}
             </div>
 
-            <!-- Лево -->
             <div class="video-slot left">
                 <label for="left">Левая камера</label>
                 <input type="file" name="left" id="left" accept="video/*">
-                <button type="button" class="clear-btn" onclick="clearVideo('left')">×</button>
-                <img src="{{ url_for('video_feed', direction='left') }}" width="180">
-                {% if results and results.left %}
-                    <video controls width="180">
-                        <source src="{{ results.left.video_url }}" type="video/mp4">
-                    </video>
-                    <p>Макс. машин: {{ results.left.stats.max_vehicles }}</p>
+
+                {% if processed and available_streams.left %}
+                    <img id="left-preview" class="stream-frame" src="{{ url_for('video_feed', direction='left') }}" alt="Поток left">
+                    <p id="left-info">Машин: 0</p>
+                {% else %}
+                    <div id="left-preview" class="empty-preview">Видео не выбрано</div>
+                    <p id="left-info"></p>
                 {% endif %}
             </div>
 
-            <!-- Право -->
             <div class="video-slot right">
                 <label for="right">Правая камера</label>
                 <input type="file" name="right" id="right" accept="video/*">
-                <button type="button" class="clear-btn" onclick="clearVideo('right')">×</button>
-                <img src="{{ url_for('video_feed', direction='right') }}" width="180">
-                {% if results and results.right %}
-                    <video controls width="180">
-                        <source src="{{ results.right.video_url }}" type="video/mp4">
-                    </video>
-                    <p>Макс. машин: {{ results.right.stats.max_vehicles }}</p>
+
+                {% if processed and available_streams.right %}
+                    <img id="right-preview" class="stream-frame" src="{{ url_for('video_feed', direction='right') }}" alt="Поток right">
+                    <p id="right-info">Машин: 0</p>
+                {% else %}
+                    <div id="right-preview" class="empty-preview">Видео не выбрано</div>
+                    <p id="right-info"></p>
                 {% endif %}
             </div>
         </div>
@@ -79,11 +75,27 @@
     </form>
 
     <script>
-    function clearVideo(slotId) {
-        const fileInput = document.getElementById(slotId);
-        fileInput.value = "";  // очищаем выбранный файл
-    }   
+    async function updateCounts() {
+        try {
+            const response = await fetch('/counts');
+            const data = await response.json();
+
+            const topInfo = document.getElementById('top-info');
+            const bottomInfo = document.getElementById('bottom-info');
+            const leftInfo = document.getElementById('left-info');
+            const rightInfo = document.getElementById('right-info');
+
+            if (topInfo) topInfo.textContent = 'Машин: ' + (data.top ?? 0);
+            if (bottomInfo) bottomInfo.textContent = 'Машин: ' + (data.bottom ?? 0);
+            if (leftInfo) leftInfo.textContent = 'Машин: ' + (data.left ?? 0);
+            if (rightInfo) rightInfo.textContent = 'Машин: ' + (data.right ?? 0);
+        } catch (e) {
+            console.log('Не удалось обновить счётчики');
+        }
+    }
+
+    setInterval(updateCounts, 500);
+    updateCounts();
     </script>
-    
 </body>
 </html>
