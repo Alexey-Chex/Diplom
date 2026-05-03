@@ -5,17 +5,47 @@
     <title>Адаптивное управление светофором</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
+<body data-processed="{{ 'true' if processed else 'false' }}">
     <h1>Система адаптивного управления светофором</h1>
 
     {% if message %}
-        <p style="color: green; font-weight: bold;">{{ message }}</p>
+        <p class="message-success">{{ message }}</p>
     {% endif %}
 
     <form method="POST" enctype="multipart/form-data">
         <div class="intersection-container">
             <img src="{{ url_for('static', filename='images/intersection.png') }}" class="intersection-bg" alt="Перекрёсток">
 
+            <!-- Светофоры -->
+            <div class="traffic-light tl-top" data-dir="top">
+                <div class="light red"></div>
+                <div class="light yellow"></div>
+                <div class="light green"></div>
+                <div class="light-timer timer-red">0</div>
+            </div>
+
+            <div class="traffic-light tl-bottom" data-dir="bottom">
+                <div class="light red"></div>
+                <div class="light yellow"></div>
+                <div class="light green"></div>
+                <div class="light-timer timer-red">0</div>
+            </div>
+
+            <div class="traffic-light tl-left" data-dir="left">
+                <div class="light red"></div>
+                <div class="light yellow"></div>
+                <div class="light green"></div>
+                <div class="light-timer timer-red">0</div>
+            </div>
+
+            <div class="traffic-light tl-right" data-dir="right">
+                <div class="light red"></div>
+                <div class="light yellow"></div>
+                <div class="light green"></div>
+                <div class="light-timer timer-red">0</div>
+            </div>
+
+            <!-- Верх -->
             <div class="video-slot top">
                 <label for="top">Верхняя камера</label>
                 <input type="file" name="top" id="top" accept="video/*">
@@ -29,6 +59,7 @@
                 {% endif %}
             </div>
 
+            <!-- Низ -->
             <div class="video-slot bottom">
                 <label for="bottom">Нижняя камера</label>
                 <input type="file" name="bottom" id="bottom" accept="video/*">
@@ -42,6 +73,7 @@
                 {% endif %}
             </div>
 
+            <!-- Лево -->
             <div class="video-slot left">
                 <label for="left">Левая камера</label>
                 <input type="file" name="left" id="left" accept="video/*">
@@ -55,6 +87,7 @@
                 {% endif %}
             </div>
 
+            <!-- Право -->
             <div class="video-slot right">
                 <label for="right">Правая камера</label>
                 <input type="file" name="right" id="right" accept="video/*">
@@ -74,28 +107,6 @@
         </div>
     </form>
 
-    <script>
-    async function updateCounts() {
-        try {
-            const response = await fetch('/counts');
-            const data = await response.json();
-
-            const topInfo = document.getElementById('top-info');
-            const bottomInfo = document.getElementById('bottom-info');
-            const leftInfo = document.getElementById('left-info');
-            const rightInfo = document.getElementById('right-info');
-
-            if (topInfo) topInfo.textContent = 'Машин: ' + (data.top ?? 0);
-            if (bottomInfo) bottomInfo.textContent = 'Машин: ' + (data.bottom ?? 0);
-            if (leftInfo) leftInfo.textContent = 'Машин: ' + (data.left ?? 0);
-            if (rightInfo) rightInfo.textContent = 'Машин: ' + (data.right ?? 0);
-        } catch (e) {
-            console.log('Не удалось обновить счётчики');
-        }
-    }
-
-    setInterval(updateCounts, 500);
-    updateCounts();
-    </script>
+    <script src="{{ url_for('static', filename='js/traffic.js') }}"></script>
 </body>
 </html>
