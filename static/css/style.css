@@ -16,6 +16,12 @@ h1 {
     margin-bottom: 20px;
 }
 
+.message-success {
+    color: green;
+    font-weight: bold;
+    margin-bottom: 14px;
+}
+
 .intersection-container {
     position: relative;
     width: 900px;
@@ -29,52 +35,6 @@ h1 {
     border: 1px solid #ccc;
 }
 
-.video-slot label {
-    display: block;
-    font-weight: bold;
-    margin-bottom: 8px;
-}
-
-.video-slot input[type="file"] {
-    width: 100%;
-    margin-bottom: 10px;
-}
-
-.video-slot video {
-    width: 100%;
-    border-radius: 6px;
-}
-
-.top {
-    top: 5px;
-    left: 170px;
-}
-
-.bottom {
-    bottom: 40px;
-    left: 450px;
-}
-
-.left {
-    top: 400px;
-    left: 60px;
-}
-
-.right {
-    top: 100px;
-    right: 60px;
-}
-
-.buttons {
-    margin-top: 20px;
-}
-
-button {
-    padding: 12px 24px;
-    font-size: 16px;
-    cursor: pointer;
-}
-
 .video-slot {
     position: absolute;
     width: 270px;
@@ -84,6 +44,18 @@ button {
     border-radius: 10px;
     padding: 10px;
     box-sizing: border-box;
+    z-index: 20;
+}
+
+.video-slot label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.video-slot input[type="file"] {
+    width: 100%;
+    margin-bottom: 10px;
 }
 
 .empty-preview {
@@ -108,4 +80,130 @@ button {
     border: 1px solid #999;
     display: block;
     margin: 0 auto;
+}
+
+.top {
+    top: 5px;
+    left: 60px;
+}
+
+.bottom {
+    bottom: 20px;
+    right: 40px;
+}
+
+.left {
+    top: 400px;
+    left: 20px;
+}
+
+.right {
+    top: 5px;
+    right: 20px;
+}
+
+.buttons {
+    margin-top: 20px;
+}
+
+button {
+    padding: 12px 24px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+/* Светофоры */
+
+.traffic-light {
+    width: 38px;
+    background: #1d1d1d;
+    padding: 6px;
+    border-radius: 10px;
+    position: absolute;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+    z-index: 25;
+    overflow: visible;
+}
+
+.light {
+    width: 22px;
+    height: 22px;
+    margin: 5px auto;
+    border-radius: 50%;
+    background: #555;
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.8);
+    opacity: 0.35;
+}
+
+.light.active {
+    opacity: 1;
+    box-shadow: 0 0 14px currentColor;
+}
+
+.red.active {
+    background: red;
+    color: red;
+}
+
+.yellow.active {
+    background: orange;
+    color: orange;
+}
+
+.green.active {
+    background: limegreen;
+    color: limegreen;
+}
+
+.tl-top {
+    top: 190px;
+    left: 340px;
+}
+
+.tl-bottom {
+    top: 450px;
+    right: 320px;
+}
+
+.tl-left {
+    top: 430px;
+    left: 300px;
+}
+
+.tl-right {
+    top: 230px;
+    right: 300px;
+}
+
+.light-timer {
+    position: absolute;
+    top: 50%;
+    left: 52px;
+    transform: translateY(-50%);
+    min-width: 42px;
+    padding: 4px 6px;
+    border-radius: 8px;
+    background: rgba(20, 20, 20, 0.9);
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    text-align: center;
+    border: 2px solid #666;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    z-index: 35;
+}
+
+.timer-red {
+    color: #ff4d4d;
+    border-color: #ff4d4d;
+}
+
+.timer-yellow {
+    color: orange;
+    border-color: orange;
+}
+
+.timer-green {
+    color: limegreen;
+    border-color: limegreen;
 }
