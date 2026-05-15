@@ -207,3 +207,48 @@ button {
     color: limegreen;
     border-color: limegreen;
 }
+
+/* Панель адаптивного управления */
+
+.adaptive-panel {
+    width: 900px;
+    margin: 18px auto 0;
+    padding: 16px;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.94);
+    border: 2px solid #2f6fed;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.adaptive-panel h2 {
+    margin: 0 0 14px;
+    font-size: 22px;
+}
+
+.adaptive-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.adaptive-card {
+    padding: 10px;
+    border-radius: 10px;
+    background: #f2f6ff;
+    border: 1px solid #c8d8ff;
+    box-sizing: border-box;
+}
+
+.adaptive-card span {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-size: 13px;
+}
+
+.adaptive-card strong {
+    display: block;
+    color: #173b8f;
+    font-size: 16px;
+}
