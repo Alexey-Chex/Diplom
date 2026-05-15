@@ -213,36 +213,73 @@ button {
 .adaptive-panel {
     width: 900px;
     margin: 18px auto 0;
-    padding: 16px;
+    padding: 18px;
     box-sizing: border-box;
-    background: rgba(255, 255, 255, 0.94);
+    background: rgba(255, 255, 255, 0.95);
     border: 2px solid #2f6fed;
-    border-radius: 12px;
+    border-radius: 14px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
 .adaptive-panel h2 {
-    margin: 0 0 14px;
+    margin: 0 0 16px;
     font-size: 22px;
 }
 
-.adaptive-grid {
+.adaptive-columns {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    align-items: stretch;
 }
 
-.adaptive-card {
-    padding: 10px;
-    border-radius: 10px;
-    background: #f2f6ff;
+.adaptive-column {
+    padding: 14px;
+    border-radius: 12px;
+    background: #f8faff;
     border: 1px solid #c8d8ff;
     box-sizing: border-box;
 }
 
+.adaptive-column h3 {
+    margin: 0 0 12px;
+    font-size: 18px;
+    color: #173b8f;
+}
+
+.adaptive-column-current {
+    background: rgba(242, 246, 255, 0.98);
+}
+
+.adaptive-column-next {
+    background: rgba(245, 255, 247, 0.98);
+}
+
+.adaptive-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.adaptive-grid-two {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.adaptive-grid-one {
+    grid-template-columns: 1fr;
+}
+
+.adaptive-card {
+    padding: 11px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid #d7e1ff;
+    box-sizing: border-box;
+    min-height: 72px;
+}
+
 .adaptive-card span {
     display: block;
-    margin-bottom: 5px;
+    margin-bottom: 6px;
     color: #555;
     font-size: 13px;
 }
@@ -250,5 +287,27 @@ button {
 .adaptive-card strong {
     display: block;
     color: #173b8f;
-    font-size: 16px;
+    font-size: 17px;
+}
+
+.adaptive-card-main strong {
+    font-size: 22px;
+}
+
+.adaptive-card-green {
+    border-color: #7ddc8a;
+    background: #f3fff5;
+}
+
+.adaptive-card-green strong {
+    color: #137327;
+}
+
+.adaptive-card-red {
+    border-color: #ff9b9b;
+    background: #fff5f5;
+}
+
+.adaptive-card-red strong {
+    color: #b42323;
 }
