@@ -80,6 +80,30 @@ function prepareNextPlan(data, phase) {
     return preparedNextPlan;
 }
 
+function resetLocalState() {
+    latestData = null;
+    nextPhaseForPanel = null;
+    preparedNextPlan = null;
+    document.body.dataset.processed = 'false';
+    setGroup('horizontal', 'red');
+    setGroup('vertical', 'red');
+    setGroupTimers('horizontal', 0, 'red');
+    setGroupTimers('vertical', 0, 'red');
+    waitingPanel();
+
+    document.querySelectorAll('input[type="file"]').forEach(input => {
+        input.value = '';
+    });
+
+    document.querySelectorAll('.stream-frame').forEach(frame => {
+        const placeholder = document.createElement('div');
+        placeholder.id = frame.id;
+        placeholder.className = 'empty-preview';
+        placeholder.textContent = 'Видео не выбрано';
+        frame.replaceWith(placeholder);
+    });
+}
+
 function waitingPanel() {
     ['top-info', 'bottom-info', 'left-info', 'right-info'].forEach(id => text(id, ''));
     text('current-green-direction', 'Ожидание запуска');
@@ -127,6 +151,17 @@ async function loadData() {
     } catch (e) {
         console.log('Не удалось обновить данные адаптивного управления');
         return latestData;
+    }
+}
+
+async function resetSimulation() {
+    try {
+        const response = await fetch('/reset', { method: 'POST' });
+        if (!response.ok) throw new Error('Ошибка сброса');
+        resetLocalState();
+        await loadData();
+    } catch (e) {
+        console.log('Не удалось сбросить симуляцию');
     }
 }
 
@@ -192,6 +227,8 @@ async function segment(activePhase, activeState, waitingPhase, waitingState, dur
     let lastBlink = start;
 
     while (true) {
+        if (!latestData || !latestData.processing_started) break;
+
         const now = performance.now();
         const elapsed = now - start;
         if (elapsed >= duration * 1000) break;
@@ -255,6 +292,11 @@ async function trafficLoop() {
         await runPhase(currentPlan);
         nextPhase = phases[currentPlan.phase].opposite;
     }
+}
+
+const resetButton = document.getElementById('reset-button');
+if (resetButton) {
+    resetButton.addEventListener('click', resetSimulation);
 }
 
 setInterval(loadData, 500);
