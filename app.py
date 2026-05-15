@@ -43,6 +43,16 @@ latest_control = {
 }
 
 
+def get_initial_control_state():
+    return {
+        'phase_order': ['NS', 'EW'],
+        'green_times': {'NS': 10, 'EW': 10},
+        'next_phase': None,
+        'yellow_time': 3,
+        'priorities': {'NS': 0, 'EW': 0}
+    }
+
+
 def get_video_path(direction):
     return os.path.join(UPLOAD_FOLDER, f'{direction}.mp4')
 
@@ -55,6 +65,28 @@ def update_control_state():
     latest_direction_metrics = traffic_analyzer.analyze_load(latest_counts, wait_times)
     latest_phase_metrics = traffic_analyzer.calculate_phase_metrics(latest_direction_metrics)
     latest_control = adaptive_controller.generate_control_parameters(latest_phase_metrics)
+
+
+def reset_simulation_state(delete_uploaded_files=True):
+    global processing_started, latest_direction_metrics, latest_phase_metrics, latest_control
+
+    processing_started = False
+
+    for direction in DIRECTIONS:
+        latest_counts[direction] = 0
+        available_streams[direction] = False
+
+        if delete_uploaded_files:
+            video_path = get_video_path(direction)
+            if os.path.exists(video_path):
+                try:
+                    os.remove(video_path)
+                except OSError:
+                    pass
+
+    latest_direction_metrics = {}
+    latest_phase_metrics = {}
+    latest_control = get_initial_control_state()
 
 
 def generate_stream(direction):
@@ -70,7 +102,7 @@ def generate_stream(direction):
 
     frame_index = 0
 
-    while True:
+    while processing_started and available_streams.get(direction, False):
         frame = video_data.get_next_frame()
 
         if frame is None:
@@ -152,13 +184,19 @@ def video_feed(direction):
     if direction not in DIRECTIONS:
         return "Неверное направление", 404
 
-    if not available_streams.get(direction, False):
+    if not processing_started or not available_streams.get(direction, False):
         return "Видео не выбрано", 404
 
     return Response(
         generate_stream(direction),
         mimetype='multipart/x-mixed-replace; boundary=frame'
     )
+
+
+@app.route('/reset', methods=['POST'])
+def reset():
+    reset_simulation_state(delete_uploaded_files=True)
+    return jsonify({'status': 'ok', 'message': 'Симуляция сброшена'})
 
 
 @app.route('/counts')
