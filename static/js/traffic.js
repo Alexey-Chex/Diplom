@@ -18,6 +18,7 @@ const phases = {
 let trafficLoopStarted = false;
 let latestData = null;
 let nextPhaseForPanel = null;
+let preparedNextPlan = null;
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function num(value, fallback = 0) {
@@ -54,6 +55,31 @@ function firstPhase(data) {
     return queue(data, 'EW') > queue(data, 'NS') ? 'EW' : 'NS';
 }
 
+function makePlan(data, phase) {
+    const green = greenTime(data, phase);
+    const yellow = yellowTime(data);
+    return {
+        phase,
+        green,
+        yellow,
+        red: redTimeFor(green, yellow)
+    };
+}
+
+function showNextPlan(plan) {
+    if (!plan) return;
+    text('next-phase', phases[plan.phase].label);
+    text('next-green', plan.green + ' сек');
+    text('next-red', plan.red + ' сек');
+}
+
+function prepareNextPlan(data, phase) {
+    if (!data || !data.processing_started || !phase) return null;
+    preparedNextPlan = makePlan(data, phase);
+    showNextPlan(preparedNextPlan);
+    return preparedNextPlan;
+}
+
 function waitingPanel() {
     ['top-info', 'bottom-info', 'left-info', 'right-info'].forEach(id => text(id, ''));
     text('current-green-direction', 'Ожидание запуска');
@@ -65,19 +91,13 @@ function waitingPanel() {
     text('next-red', '0 сек');
     text('up-down-queue', '0');
     text('left-right-queue', '0');
-    text('up-down-green', '0 сек');
-    text('left-right-green', '0 сек');
     text('up-down-priority', '0.00');
     text('left-right-priority', '0.00');
 }
 
 function updateNextPanel(data) {
     if (!data || !data.processing_started) return;
-    const phase = nextPhaseForPanel || firstPhase(data);
-    const green = greenTime(data, phase);
-    text('next-phase', phases[phase].label);
-    text('next-green', green + ' сек');
-    text('next-red', redTimeFor(green, yellowTime(data)) + ' сек');
+    prepareNextPlan(data, nextPhaseForPanel || firstPhase(data));
 }
 
 function updatePanel(data) {
@@ -93,8 +113,6 @@ function updatePanel(data) {
     text('right-info', 'Машин: ' + num(data.right));
     text('up-down-queue', queue(data, 'NS'));
     text('left-right-queue', queue(data, 'EW'));
-    text('up-down-green', greenTime(data, 'NS') + ' сек');
-    text('left-right-green', greenTime(data, 'EW') + ' сек');
     text('up-down-priority', num(data.priority_ns).toFixed(2));
     text('left-right-priority', num(data.priority_ew).toFixed(2));
     updateNextPanel(data);
@@ -192,12 +210,16 @@ async function segment(activePhase, activeState, waitingPhase, waitingState, dur
     }
 }
 
-async function runPhase(phase, green, yellow) {
+async function runPhase(plan) {
+    const phase = plan.phase;
+    const green = plan.green;
+    const yellow = plan.yellow;
     const waitingPhase = phases[phase].opposite;
     nextPhaseForPanel = waitingPhase;
-    updateNextPanel(latestData);
+    prepareNextPlan(latestData, waitingPhase);
+
     const steadyGreen = Math.max(0, green - GREEN_BLINK_SECONDS);
-    const redTotal = redTimeFor(green, yellow);
+    const redTotal = plan.red;
     if (steadyGreen > 0) await segment(phase, 'green', waitingPhase, 'red', steadyGreen, green, redTotal);
     await segment(phase, 'blink-green', waitingPhase, 'red', Math.min(GREEN_BLINK_SECONDS, green), Math.min(GREEN_BLINK_SECONDS, green), redTotal - steadyGreen);
     await segment(phase, 'yellow', waitingPhase, 'red', yellow, yellow, yellow + RED_YELLOW_SECONDS);
@@ -212,20 +234,26 @@ async function trafficLoop() {
     setGroupTimers('horizontal', 0, 'red');
     setGroupTimers('vertical', 0, 'red');
     let nextPhase = null;
+
     while (true) {
-        const data = await loadData();
+        let data = latestData || await loadData();
         if (!data || !data.processing_started) {
             nextPhase = null;
             nextPhaseForPanel = null;
+            preparedNextPlan = null;
             waitingPanel();
             await sleep(500);
             continue;
         }
+
         if (!nextPhase) nextPhase = firstPhase(data);
-        nextPhaseForPanel = phases[nextPhase].opposite;
-        updateNextPanel(data);
-        await runPhase(nextPhase, greenTime(data, nextPhase), yellowTime(data));
-        nextPhase = phases[nextPhase].opposite;
+
+        let currentPlan = preparedNextPlan && preparedNextPlan.phase === nextPhase
+            ? preparedNextPlan
+            : makePlan(data, nextPhase);
+
+        await runPhase(currentPlan);
+        nextPhase = phases[currentPlan.phase].opposite;
     }
 }
 
