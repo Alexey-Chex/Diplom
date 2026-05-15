@@ -1,6 +1,6 @@
 const GREEN_BLINK_SECONDS = 3;
 const DEFAULT_YELLOW_SECONDS = 3;
-const RED_YELLOW_SECONDS = 1;
+const RED_YELLOW_SECONDS = 0;
 const DEFAULT_GREEN_SECONDS = 10;
 
 const processingStarted = document.body.dataset.processed === 'true' || document.querySelector('.stream-frame') !== null;
@@ -260,7 +260,10 @@ async function runPhase(plan) {
     if (steadyGreen > 0) await segment(phase, 'green', waitingPhase, 'red', steadyGreen, green, redTotal);
     await segment(phase, 'blink-green', waitingPhase, 'red', Math.min(GREEN_BLINK_SECONDS, green), Math.min(GREEN_BLINK_SECONDS, green), redTotal - steadyGreen);
     await segment(phase, 'yellow', waitingPhase, 'red', yellow, yellow, yellow + RED_YELLOW_SECONDS);
-    await segment(phase, 'red', waitingPhase, 'red-yellow', RED_YELLOW_SECONDS, RED_YELLOW_SECONDS, RED_YELLOW_SECONDS);
+
+    if (RED_YELLOW_SECONDS > 0) {
+        await segment(phase, 'red', waitingPhase, 'red-yellow', RED_YELLOW_SECONDS, RED_YELLOW_SECONDS, RED_YELLOW_SECONDS);
+    }
 }
 
 async function trafficLoop() {
