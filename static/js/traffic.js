@@ -1,7 +1,8 @@
-const MAIN_PHASE_SECONDS = 13;   // чистый зеленый / чистый красный
-const GREEN_BLINK_SECONDS = 3;   // последние 3 секунды зеленого мигают
-const YELLOW_SECONDS = 3;        // желтый после зеленого
-const RED_YELLOW_SECONDS = 1;    // красный + оранжевый перед зеленым
+const GREEN_BLINK_SECONDS = 3;      // последние секунды зелёного мигают
+const DEFAULT_YELLOW_SECONDS = 3;   // жёлтый сигнал после зелёного
+const RED_YELLOW_SECONDS = 1;       // красный + жёлтый перед зелёным
+const DEFAULT_GREEN_SECONDS = 10;   // запасное значение, если backend ещё не вернул время
+const MAX_SAME_PHASE_REPEATS = 2;   // защита от бесконечного удержания одной фазы
 
 const processingStarted =
     document.body.dataset.processed === 'true' ||
@@ -12,28 +13,142 @@ const groups = {
     vertical: ['top', 'bottom']
 };
 
+const phases = {
+    NS: {
+        group: 'vertical',
+        waitingGroup: 'horizontal',
+        label: 'NS — верх + низ',
+        greenField: 'green_ns',
+        queueField: 'phase_ns_queue',
+        opposite: 'EW'
+    },
+    EW: {
+        group: 'horizontal',
+        waitingGroup: 'vertical',
+        label: 'EW — лево + право',
+        greenField: 'green_ew',
+        queueField: 'phase_ew_queue',
+        opposite: 'NS'
+    }
+};
+
 let trafficLoopStarted = false;
+let latestTrafficData = null;
+let lastCompletedPhase = null;
+let samePhaseRepeatCount = 0;
+let fallbackPhase = 'EW';
 
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function updateCounts() {
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function normalizePhase(phase) {
+    return phase === 'EW' ? 'EW' : 'NS';
+}
+
+function getNumber(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getQueue(data, phase) {
+    if (!data) return 0;
+
+    if (phase === 'NS') {
+        return getNumber(data.phase_ns_queue, getNumber(data.top) + getNumber(data.bottom));
+    }
+
+    return getNumber(data.phase_ew_queue, getNumber(data.left) + getNumber(data.right));
+}
+
+function getGreenSeconds(data, phase) {
+    if (!data) return DEFAULT_GREEN_SECONDS;
+
+    const field = phases[phase].greenField;
+    const backendValue = getNumber(data[field], DEFAULT_GREEN_SECONDS);
+
+    return clamp(Math.round(backendValue), 5, 60);
+}
+
+function getYellowSeconds(data) {
+    return clamp(Math.round(getNumber(data?.yellow_time, DEFAULT_YELLOW_SECONDS)), 1, 10);
+}
+
+function setText(id, text) {
+    const element = document.getElementById(id);
+    if (element) element.textContent = text;
+}
+
+function updateInfoPanel(data) {
+    if (!data) return;
+
+    setText('top-info', 'Машин: ' + getNumber(data.top));
+    setText('bottom-info', 'Машин: ' + getNumber(data.bottom));
+    setText('left-info', 'Машин: ' + getNumber(data.left));
+    setText('right-info', 'Машин: ' + getNumber(data.right));
+
+    const recommendedPhase = normalizePhase(data.recommended_phase);
+
+    setText('recommended-phase', phases[recommendedPhase].label);
+    setText('ns-queue', getQueue(data, 'NS'));
+    setText('ew-queue', getQueue(data, 'EW'));
+    setText('ns-green', getGreenSeconds(data, 'NS') + ' сек');
+    setText('ew-green', getGreenSeconds(data, 'EW') + ' сек');
+    setText('ns-priority', getNumber(data.priority_ns).toFixed(2));
+    setText('ew-priority', getNumber(data.priority_ew).toFixed(2));
+}
+
+async function loadTrafficData() {
     try {
         const response = await fetch('/counts');
         const data = await response.json();
-
-        const topInfo = document.getElementById('top-info');
-        const bottomInfo = document.getElementById('bottom-info');
-        const leftInfo = document.getElementById('left-info');
-        const rightInfo = document.getElementById('right-info');
-
-        if (topInfo) topInfo.textContent = 'Машин: ' + (data.top ?? 0);
-        if (bottomInfo) bottomInfo.textContent = 'Машин: ' + (data.bottom ?? 0);
-        if (leftInfo) leftInfo.textContent = 'Машин: ' + (data.left ?? 0);
-        if (rightInfo) rightInfo.textContent = 'Машин: ' + (data.right ?? 0);
+        latestTrafficData = data;
+        updateInfoPanel(data);
+        return data;
     } catch (e) {
-        console.log('Не удалось обновить счётчики');
+        console.log('Не удалось обновить данные адаптивного управления');
+        return latestTrafficData;
+    }
+}
+
+async function updateCounts() {
+    await loadTrafficData();
+}
+
+function chooseAdaptivePhase(data) {
+    const nsQueue = getQueue(data, 'NS');
+    const ewQueue = getQueue(data, 'EW');
+
+    if (nsQueue === 0 && ewQueue === 0) {
+        fallbackPhase = fallbackPhase === 'NS' ? 'EW' : 'NS';
+        return fallbackPhase;
+    }
+
+    if (nsQueue > 0 && ewQueue === 0) return 'NS';
+    if (ewQueue > 0 && nsQueue === 0) return 'EW';
+
+    const recommendedPhase = normalizePhase(data?.recommended_phase);
+
+    if (
+        lastCompletedPhase === recommendedPhase &&
+        samePhaseRepeatCount >= MAX_SAME_PHASE_REPEATS
+    ) {
+        return phases[recommendedPhase].opposite;
+    }
+
+    return recommendedPhase;
+}
+
+function rememberCompletedPhase(phase) {
+    if (lastCompletedPhase === phase) {
+        samePhaseRepeatCount += 1;
+    } else {
+        lastCompletedPhase = phase;
+        samePhaseRepeatCount = 1;
     }
 }
 
@@ -144,63 +259,56 @@ async function runSegment({
     applyGroupState(waitingGroup, waitingState, true);
 }
 
-async function runPhase(activeGroup, waitingGroup) {
-    const steadyGreenSeconds = MAIN_PHASE_SECONDS - GREEN_BLINK_SECONDS; // 7
+async function runAdaptivePhase(phase, greenSeconds, yellowSeconds) {
+    const activeGroup = phases[phase].group;
+    const waitingGroup = phases[phase].waitingGroup;
+    const steadyGreenSeconds = Math.max(0, greenSeconds - GREEN_BLINK_SECONDS);
+    const waitingRedAtStart = greenSeconds + yellowSeconds;
+    const waitingRedAfterSteady = waitingRedAtStart - steadyGreenSeconds;
+    const waitingRedAfterBlink = yellowSeconds;
 
-    // Для ожидающей группы:
-    // 13 секунд чистого красного = 10 зеленого другой группы + 3 желтого другой группы
-    const waitingPureRedAtStart = MAIN_PHASE_SECONDS + YELLOW_SECONDS; // 13
-    const waitingPureRedAfterSteady = waitingPureRedAtStart - steadyGreenSeconds; // 6
-    const waitingPureRedAfterBlink = YELLOW_SECONDS; // 3
+    setText('current-phase', phases[phase].label);
+    setText('current-green', greenSeconds + ' сек');
 
-    // Для группы, которая только что закончила ехать:
-    // когда она станет красной, до своего red-yellow у нее:
-    // 10 сек зеленого другой группы + 3 сек желтого другой группы + 1 сек red-yellow другой группы
-    const newRedStart = MAIN_PHASE_SECONDS + YELLOW_SECONDS + RED_YELLOW_SECONDS; // 14
+    if (steadyGreenSeconds > 0) {
+        await runSegment({
+            durationMs: steadyGreenSeconds * 1000,
+            activeGroup,
+            activeState: 'green',
+            waitingGroup,
+            waitingState: 'red',
+            activeTimerStartSec: greenSeconds,
+            waitingTimerStartSec: waitingRedAtStart
+        });
+    }
 
-    // 1. Основной зеленый: 7 секунд
     await runSegment({
-        durationMs: steadyGreenSeconds * 1000,
-        activeGroup,
-        activeState: 'green',
-        waitingGroup,
-        waitingState: 'red',
-        activeTimerStartSec: MAIN_PHASE_SECONDS,
-        waitingTimerStartSec: waitingPureRedAtStart
-    });
-
-    // 2. Последние 3 секунды: зеленый мигает, другая группа красный
-    await runSegment({
-        durationMs: GREEN_BLINK_SECONDS * 1000,
+        durationMs: Math.min(GREEN_BLINK_SECONDS, greenSeconds) * 1000,
         activeGroup,
         activeState: 'blink-green',
         waitingGroup,
         waitingState: 'red',
-        activeTimerStartSec: GREEN_BLINK_SECONDS,
-        waitingTimerStartSec: waitingPureRedAfterSteady
+        activeTimerStartSec: Math.min(GREEN_BLINK_SECONDS, greenSeconds),
+        waitingTimerStartSec: waitingRedAfterSteady
     });
 
-    // 3. Желтый 3 секунды, другая группа красный
     await runSegment({
-        durationMs: YELLOW_SECONDS * 1000,
+        durationMs: yellowSeconds * 1000,
         activeGroup,
         activeState: 'yellow',
         waitingGroup,
         waitingState: 'red',
-        activeTimerStartSec: YELLOW_SECONDS,
-        waitingTimerStartSec: waitingPureRedAfterBlink
+        activeTimerStartSec: yellowSeconds,
+        waitingTimerStartSec: waitingRedAfterBlink
     });
 
-    // 4. Последняя 1 секунда:
-    // у прежней активной группы уже красный (и он начинается с 14),
-    // у ожидающей группы красный + оранжевый (1 секунда)
     await runSegment({
         durationMs: RED_YELLOW_SECONDS * 1000,
         activeGroup,
         activeState: 'red',
         waitingGroup,
         waitingState: 'red-yellow',
-        activeTimerStartSec: newRedStart,
+        activeTimerStartSec: RED_YELLOW_SECONDS,
         waitingTimerStartSec: RED_YELLOW_SECONDS
     });
 }
@@ -215,8 +323,13 @@ async function trafficLoop() {
     setGroupTimers('vertical', 0, 'red');
 
     while (true) {
-        await runPhase('horizontal', 'vertical');
-        await runPhase('vertical', 'horizontal');
+        const data = await loadTrafficData();
+        const phase = chooseAdaptivePhase(data);
+        const greenSeconds = getGreenSeconds(data, phase);
+        const yellowSeconds = getYellowSeconds(data);
+
+        await runAdaptivePhase(phase, greenSeconds, yellowSeconds);
+        rememberCompletedPhase(phase);
     }
 }
 
@@ -230,4 +343,6 @@ if (processingStarted) {
     setGroup('vertical', 'red');
     setGroupTimers('horizontal', 0, 'red');
     setGroupTimers('vertical', 0, 'red');
+    setText('current-phase', 'Ожидание запуска');
+    setText('recommended-phase', 'Нет данных');
 }
