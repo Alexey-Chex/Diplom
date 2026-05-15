@@ -104,12 +104,28 @@ h1 {
 
 .buttons {
     margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
 }
 
 button {
     padding: 12px 24px;
     font-size: 16px;
     cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    background: #2f6fed;
+    color: white;
+    font-weight: bold;
+}
+
+button:hover {
+    opacity: 0.9;
+}
+
+.reset-button {
+    background: #d93025;
 }
 
 /* Светофоры */
