@@ -202,20 +202,26 @@ function applyGroup(group, state, visible = true) {
     else setGroup(group, state);
 }
 
-function updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingState, waitingLeft) {
-    if (waitingState === 'red-yellow') {
-        text('current-green-direction', 'Подготовка: ' + phases[waitingPhase].label);
-        text('current-green-time', sec(waitingLeft));
-        text('current-red-direction', 'Красный: ' + phases[activePhase].label);
-        text('current-red-time', sec(activeLeft));
-        return;
+function getWaitingDisplayState(waitingState, waitingLeft) {
+    if (waitingState === 'red' && Math.ceil(waitingLeft) === 1) {
+        return 'red-yellow';
     }
-    let title = 'Зелёный: ';
-    if (activeState === 'blink-green') title = 'Мигающий зелёный: ';
-    if (activeState === 'yellow') title = 'Жёлтый: ';
-    text('current-green-direction', title + phases[activePhase].label);
+
+    return waitingState;
+}
+
+function getSignalTitle(state, phase) {
+    if (state === 'blink-green') return 'Мигающий зелёный: ' + phases[phase].label;
+    if (state === 'yellow') return 'Жёлтый: ' + phases[phase].label;
+    if (state === 'red-yellow') return 'Красный + жёлтый: ' + phases[phase].label;
+    if (state === 'red') return 'Красный: ' + phases[phase].label;
+    return 'Зелёный: ' + phases[phase].label;
+}
+
+function updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingState, waitingLeft) {
+    text('current-green-direction', getSignalTitle(activeState, activePhase));
     text('current-green-time', sec(activeLeft));
-    text('current-red-direction', 'Красный: ' + phases[waitingPhase].label);
+    text('current-red-direction', getSignalTitle(waitingState, waitingPhase));
     text('current-red-time', sec(waitingLeft));
 }
 
@@ -238,11 +244,13 @@ async function segment(activePhase, activeState, waitingPhase, waitingState, dur
         }
         const activeLeft = Math.max(0.1, activeStart - elapsed / 1000);
         const waitingLeft = Math.max(0.1, waitingStart - elapsed / 1000);
+        const waitingDisplayState = getWaitingDisplayState(waitingState, waitingLeft);
+
         applyGroup(activeGroup, activeState, visible);
-        applyGroup(waitingGroup, waitingState);
+        applyGroup(waitingGroup, waitingDisplayState);
         setGroupTimers(activeGroup, activeLeft, activeState);
-        setGroupTimers(waitingGroup, waitingLeft, waitingState);
-        updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingState, waitingLeft);
+        setGroupTimers(waitingGroup, waitingLeft, waitingDisplayState);
+        updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingDisplayState, waitingLeft);
         await sleep(100);
     }
 }
