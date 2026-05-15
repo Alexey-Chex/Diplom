@@ -83,8 +83,29 @@ function setText(id, text) {
     if (element) element.textContent = text;
 }
 
+function setWaitingPanel() {
+    setText('top-info', '');
+    setText('bottom-info', '');
+    setText('left-info', '');
+    setText('right-info', '');
+    setText('current-phase', 'Ожидание запуска');
+    setText('recommended-phase', 'Ожидание запуска');
+    setText('current-green', '0 сек');
+    setText('ns-queue', '0');
+    setText('ew-queue', '0');
+    setText('ns-green', '0 сек');
+    setText('ew-green', '0 сек');
+    setText('ns-priority', '0.00');
+    setText('ew-priority', '0.00');
+}
+
 function updateInfoPanel(data) {
     if (!data) return;
+
+    if (!data.processing_started) {
+        setWaitingPanel();
+        return;
+    }
 
     setText('top-info', 'Машин: ' + getNumber(data.top));
     setText('bottom-info', 'Машин: ' + getNumber(data.bottom));
@@ -324,6 +345,13 @@ async function trafficLoop() {
 
     while (true) {
         const data = await loadTrafficData();
+
+        if (!data || !data.processing_started) {
+            setWaitingPanel();
+            await sleep(500);
+            continue;
+        }
+
         const phase = chooseAdaptivePhase(data);
         const greenSeconds = getGreenSeconds(data, phase);
         const yellowSeconds = getYellowSeconds(data);
@@ -334,15 +362,14 @@ async function trafficLoop() {
 }
 
 setInterval(updateCounts, 500);
-updateCounts();
 
 if (processingStarted) {
+    updateCounts();
     trafficLoop();
 } else {
     setGroup('horizontal', 'red');
     setGroup('vertical', 'red');
     setGroupTimers('horizontal', 0, 'red');
     setGroupTimers('vertical', 0, 'red');
-    setText('current-phase', 'Ожидание запуска');
-    setText('recommended-phase', 'Нет данных');
+    setWaitingPanel();
 }
