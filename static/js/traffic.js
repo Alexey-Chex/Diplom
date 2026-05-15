@@ -1,12 +1,9 @@
-const GREEN_BLINK_SECONDS = 3;      // последние секунды зелёного мигают
-const DEFAULT_YELLOW_SECONDS = 3;   // жёлтый сигнал после зелёного
-const RED_YELLOW_SECONDS = 1;       // красный + жёлтый перед зелёным
-const DEFAULT_GREEN_SECONDS = 10;   // запасное значение, если backend ещё не вернул время
-const MAX_SAME_PHASE_REPEATS = 2;   // защита от бесконечного удержания одной фазы
+const GREEN_BLINK_SECONDS = 3;
+const DEFAULT_YELLOW_SECONDS = 3;
+const RED_YELLOW_SECONDS = 1;
+const DEFAULT_GREEN_SECONDS = 10;
 
-const processingStarted =
-    document.body.dataset.processed === 'true' ||
-    document.querySelector('.stream-frame') !== null;
+const processingStarted = document.body.dataset.processed === 'true' || document.querySelector('.stream-frame') !== null;
 
 const groups = {
     horizontal: ['left', 'right'],
@@ -14,362 +11,233 @@ const groups = {
 };
 
 const phases = {
-    NS: {
-        group: 'vertical',
-        waitingGroup: 'horizontal',
-        label: 'NS — верх + низ',
-        greenField: 'green_ns',
-        queueField: 'phase_ns_queue',
-        opposite: 'EW'
-    },
-    EW: {
-        group: 'horizontal',
-        waitingGroup: 'vertical',
-        label: 'EW — лево + право',
-        greenField: 'green_ew',
-        queueField: 'phase_ew_queue',
-        opposite: 'NS'
-    }
+    NS: { group: 'vertical', label: 'верх/низ', green: 'green_ns', opposite: 'EW' },
+    EW: { group: 'horizontal', label: 'лево/право', green: 'green_ew', opposite: 'NS' }
 };
 
 let trafficLoopStarted = false;
-let latestTrafficData = null;
-let lastCompletedPhase = null;
-let samePhaseRepeatCount = 0;
-let fallbackPhase = 'EW';
+let latestData = null;
+let nextPhaseForPanel = null;
 
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function num(value, fallback = 0) {
+    const result = Number(value);
+    return Number.isFinite(result) ? result : fallback;
 }
-
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+function text(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
 }
+function sec(value) { return Math.max(0, Math.ceil(value)) + ' сек'; }
 
-function normalizePhase(phase) {
-    return phase === 'EW' ? 'EW' : 'NS';
-}
-
-function getNumber(value, fallback = 0) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function getQueue(data, phase) {
+function queue(data, phase) {
     if (!data) return 0;
-
-    if (phase === 'NS') {
-        return getNumber(data.phase_ns_queue, getNumber(data.top) + getNumber(data.bottom));
-    }
-
-    return getNumber(data.phase_ew_queue, getNumber(data.left) + getNumber(data.right));
+    if (phase === 'NS') return num(data.phase_ns_queue, num(data.top) + num(data.bottom));
+    return num(data.phase_ew_queue, num(data.left) + num(data.right));
 }
 
-function getGreenSeconds(data, phase) {
+function greenTime(data, phase) {
     if (!data) return DEFAULT_GREEN_SECONDS;
-
-    const field = phases[phase].greenField;
-    const backendValue = getNumber(data[field], DEFAULT_GREEN_SECONDS);
-
-    return clamp(Math.round(backendValue), 5, 60);
+    return clamp(Math.round(num(data[phases[phase].green], DEFAULT_GREEN_SECONDS)), 5, 60);
 }
 
-function getYellowSeconds(data) {
-    return clamp(Math.round(getNumber(data?.yellow_time, DEFAULT_YELLOW_SECONDS)), 1, 10);
+function yellowTime(data) {
+    return clamp(Math.round(num(data?.yellow_time, DEFAULT_YELLOW_SECONDS)), 1, 10);
 }
 
-function setText(id, text) {
-    const element = document.getElementById(id);
-    if (element) element.textContent = text;
+function redTimeFor(green, yellow) {
+    return green + yellow + RED_YELLOW_SECONDS;
 }
 
-function setWaitingPanel() {
-    setText('top-info', '');
-    setText('bottom-info', '');
-    setText('left-info', '');
-    setText('right-info', '');
-    setText('current-phase', 'Ожидание запуска');
-    setText('recommended-phase', 'Ожидание запуска');
-    setText('current-green', '0 сек');
-    setText('ns-queue', '0');
-    setText('ew-queue', '0');
-    setText('ns-green', '0 сек');
-    setText('ew-green', '0 сек');
-    setText('ns-priority', '0.00');
-    setText('ew-priority', '0.00');
+function firstPhase(data) {
+    return queue(data, 'EW') > queue(data, 'NS') ? 'EW' : 'NS';
 }
 
-function updateInfoPanel(data) {
+function waitingPanel() {
+    ['top-info', 'bottom-info', 'left-info', 'right-info'].forEach(id => text(id, ''));
+    text('current-green-direction', 'Ожидание запуска');
+    text('current-green-time', '0 сек');
+    text('current-red-direction', 'Ожидание запуска');
+    text('current-red-time', '0 сек');
+    text('next-phase', 'Ожидание запуска');
+    text('next-green', '0 сек');
+    text('next-red', '0 сек');
+    text('up-down-queue', '0');
+    text('left-right-queue', '0');
+    text('up-down-green', '0 сек');
+    text('left-right-green', '0 сек');
+    text('up-down-priority', '0.00');
+    text('left-right-priority', '0.00');
+}
+
+function updateNextPanel(data) {
+    if (!data || !data.processing_started) return;
+    const phase = nextPhaseForPanel || firstPhase(data);
+    const green = greenTime(data, phase);
+    text('next-phase', phases[phase].label);
+    text('next-green', green + ' сек');
+    text('next-red', redTimeFor(green, yellowTime(data)) + ' сек');
+}
+
+function updatePanel(data) {
     if (!data) return;
-
     if (!data.processing_started) {
-        setWaitingPanel();
+        waitingPanel();
         return;
     }
 
-    setText('top-info', 'Машин: ' + getNumber(data.top));
-    setText('bottom-info', 'Машин: ' + getNumber(data.bottom));
-    setText('left-info', 'Машин: ' + getNumber(data.left));
-    setText('right-info', 'Машин: ' + getNumber(data.right));
-
-    const recommendedPhase = normalizePhase(data.recommended_phase);
-
-    setText('recommended-phase', phases[recommendedPhase].label);
-    setText('ns-queue', getQueue(data, 'NS'));
-    setText('ew-queue', getQueue(data, 'EW'));
-    setText('ns-green', getGreenSeconds(data, 'NS') + ' сек');
-    setText('ew-green', getGreenSeconds(data, 'EW') + ' сек');
-    setText('ns-priority', getNumber(data.priority_ns).toFixed(2));
-    setText('ew-priority', getNumber(data.priority_ew).toFixed(2));
+    text('top-info', 'Машин: ' + num(data.top));
+    text('bottom-info', 'Машин: ' + num(data.bottom));
+    text('left-info', 'Машин: ' + num(data.left));
+    text('right-info', 'Машин: ' + num(data.right));
+    text('up-down-queue', queue(data, 'NS'));
+    text('left-right-queue', queue(data, 'EW'));
+    text('up-down-green', greenTime(data, 'NS') + ' сек');
+    text('left-right-green', greenTime(data, 'EW') + ' сек');
+    text('up-down-priority', num(data.priority_ns).toFixed(2));
+    text('left-right-priority', num(data.priority_ew).toFixed(2));
+    updateNextPanel(data);
 }
 
-async function loadTrafficData() {
+async function loadData() {
     try {
         const response = await fetch('/counts');
-        const data = await response.json();
-        latestTrafficData = data;
-        updateInfoPanel(data);
-        return data;
+        latestData = await response.json();
+        updatePanel(latestData);
+        return latestData;
     } catch (e) {
         console.log('Не удалось обновить данные адаптивного управления');
-        return latestTrafficData;
-    }
-}
-
-async function updateCounts() {
-    await loadTrafficData();
-}
-
-function chooseAdaptivePhase(data) {
-    const nsQueue = getQueue(data, 'NS');
-    const ewQueue = getQueue(data, 'EW');
-
-    if (nsQueue === 0 && ewQueue === 0) {
-        fallbackPhase = fallbackPhase === 'NS' ? 'EW' : 'NS';
-        return fallbackPhase;
-    }
-
-    if (nsQueue > 0 && ewQueue === 0) return 'NS';
-    if (ewQueue > 0 && nsQueue === 0) return 'EW';
-
-    const recommendedPhase = normalizePhase(data?.recommended_phase);
-
-    if (
-        lastCompletedPhase === recommendedPhase &&
-        samePhaseRepeatCount >= MAX_SAME_PHASE_REPEATS
-    ) {
-        return phases[recommendedPhase].opposite;
-    }
-
-    return recommendedPhase;
-}
-
-function rememberCompletedPhase(phase) {
-    if (lastCompletedPhase === phase) {
-        samePhaseRepeatCount += 1;
-    } else {
-        lastCompletedPhase = phase;
-        samePhaseRepeatCount = 1;
+        return latestData;
     }
 }
 
 function clearLight(dir) {
-    const light = document.querySelector(`.traffic-light[data-dir="${dir}"]`);
+    const light = document.querySelector('.traffic-light[data-dir="' + dir + '"]');
     if (!light) return;
-
     light.querySelector('.red').classList.remove('active');
     light.querySelector('.yellow').classList.remove('active');
     light.querySelector('.green').classList.remove('active');
 }
 
 function setLight(dir, state) {
-    const light = document.querySelector(`.traffic-light[data-dir="${dir}"]`);
+    const light = document.querySelector('.traffic-light[data-dir="' + dir + '"]');
     if (!light) return;
-
     clearLight(dir);
-
-    if (state === 'red') {
-        light.querySelector('.red').classList.add('active');
-    } else if (state === 'yellow') {
-        light.querySelector('.yellow').classList.add('active');
-    } else if (state === 'green') {
-        light.querySelector('.green').classList.add('active');
-    } else if (state === 'red-yellow') {
+    if (state === 'red') light.querySelector('.red').classList.add('active');
+    if (state === 'yellow') light.querySelector('.yellow').classList.add('active');
+    if (state === 'green') light.querySelector('.green').classList.add('active');
+    if (state === 'red-yellow') {
         light.querySelector('.red').classList.add('active');
         light.querySelector('.yellow').classList.add('active');
-    } else if (state === 'off') {
-        clearLight(dir);
     }
 }
 
-function setGroup(groupName, state) {
-    groups[groupName].forEach(dir => setLight(dir, state));
-}
-
+function setGroup(group, state) { groups[group].forEach(dir => setLight(dir, state)); }
 function setTimer(dir, seconds, state) {
-    const timer = document.querySelector(`.traffic-light[data-dir="${dir}"] .light-timer`);
+    const timer = document.querySelector('.traffic-light[data-dir="' + dir + '"] .light-timer');
     if (!timer) return;
-
     timer.textContent = Math.max(0, Math.ceil(seconds));
-
     timer.classList.remove('timer-red', 'timer-yellow', 'timer-green');
-
-    if (state === 'green' || state === 'blink-green') {
-        timer.classList.add('timer-green');
-    } else if (state === 'yellow' || state === 'red-yellow') {
-        timer.classList.add('timer-yellow');
-    } else {
-        timer.classList.add('timer-red');
-    }
+    if (state === 'green' || state === 'blink-green') timer.classList.add('timer-green');
+    else if (state === 'yellow' || state === 'red-yellow') timer.classList.add('timer-yellow');
+    else timer.classList.add('timer-red');
+}
+function setGroupTimers(group, seconds, state) { groups[group].forEach(dir => setTimer(dir, seconds, state)); }
+function applyGroup(group, state, visible = true) {
+    if (state === 'blink-green') groups[group].forEach(dir => setLight(dir, visible ? 'green' : 'off'));
+    else setGroup(group, state);
 }
 
-function setGroupTimers(groupName, seconds, state) {
-    groups[groupName].forEach(dir => setTimer(dir, seconds, state));
-}
-
-function applyGroupState(groupName, state, blinkVisible = true) {
-    if (state === 'blink-green') {
-        groups[groupName].forEach(dir => {
-            setLight(dir, blinkVisible ? 'green' : 'off');
-        });
+function updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingState, waitingLeft) {
+    if (waitingState === 'red-yellow') {
+        text('current-green-direction', 'Подготовка: ' + phases[waitingPhase].label);
+        text('current-green-time', sec(waitingLeft));
+        text('current-red-direction', 'Красный: ' + phases[activePhase].label);
+        text('current-red-time', sec(activeLeft));
         return;
     }
-
-    setGroup(groupName, state);
+    let title = 'Зелёный: ';
+    if (activeState === 'blink-green') title = 'Мигающий зелёный: ';
+    if (activeState === 'yellow') title = 'Жёлтый: ';
+    text('current-green-direction', title + phases[activePhase].label);
+    text('current-green-time', sec(activeLeft));
+    text('current-red-direction', 'Красный: ' + phases[waitingPhase].label);
+    text('current-red-time', sec(waitingLeft));
 }
 
-async function runSegment({
-    durationMs,
-    activeGroup,
-    activeState,
-    waitingGroup,
-    waitingState,
-    activeTimerStartSec,
-    waitingTimerStartSec
-}) {
-    const startTime = performance.now();
-    let blinkVisible = true;
-    let lastBlinkToggle = startTime;
+async function segment(activePhase, activeState, waitingPhase, waitingState, duration, activeStart, waitingStart) {
+    const activeGroup = phases[activePhase].group;
+    const waitingGroup = phases[waitingPhase].group;
+    const start = performance.now();
+    let visible = true;
+    let lastBlink = start;
 
     while (true) {
         const now = performance.now();
-        const elapsed = now - startTime;
-
-        if (elapsed >= durationMs) {
-            break;
+        const elapsed = now - start;
+        if (elapsed >= duration * 1000) break;
+        if (activeState === 'blink-green' && now - lastBlink >= 500) {
+            visible = !visible;
+            lastBlink = now;
         }
-
-        if (activeState === 'blink-green' && now - lastBlinkToggle >= 500) {
-            blinkVisible = !blinkVisible;
-            lastBlinkToggle = now;
-        }
-
-        applyGroupState(activeGroup, activeState, blinkVisible);
-        applyGroupState(waitingGroup, waitingState, true);
-
-        const activeRemaining = Math.max(0.1, activeTimerStartSec - elapsed / 1000);
-        const waitingRemaining = Math.max(0.1, waitingTimerStartSec - elapsed / 1000);
-
-        setGroupTimers(activeGroup, activeRemaining, activeState);
-        setGroupTimers(waitingGroup, waitingRemaining, waitingState);
-
+        const activeLeft = Math.max(0.1, activeStart - elapsed / 1000);
+        const waitingLeft = Math.max(0.1, waitingStart - elapsed / 1000);
+        applyGroup(activeGroup, activeState, visible);
+        applyGroup(waitingGroup, waitingState);
+        setGroupTimers(activeGroup, activeLeft, activeState);
+        setGroupTimers(waitingGroup, waitingLeft, waitingState);
+        updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingState, waitingLeft);
         await sleep(100);
     }
-
-    applyGroupState(activeGroup, activeState === 'blink-green' ? 'green' : activeState, true);
-    applyGroupState(waitingGroup, waitingState, true);
 }
 
-async function runAdaptivePhase(phase, greenSeconds, yellowSeconds) {
-    const activeGroup = phases[phase].group;
-    const waitingGroup = phases[phase].waitingGroup;
-    const steadyGreenSeconds = Math.max(0, greenSeconds - GREEN_BLINK_SECONDS);
-    const waitingRedAtStart = greenSeconds + yellowSeconds;
-    const waitingRedAfterSteady = waitingRedAtStart - steadyGreenSeconds;
-    const waitingRedAfterBlink = yellowSeconds;
-
-    setText('current-phase', phases[phase].label);
-    setText('current-green', greenSeconds + ' сек');
-
-    if (steadyGreenSeconds > 0) {
-        await runSegment({
-            durationMs: steadyGreenSeconds * 1000,
-            activeGroup,
-            activeState: 'green',
-            waitingGroup,
-            waitingState: 'red',
-            activeTimerStartSec: greenSeconds,
-            waitingTimerStartSec: waitingRedAtStart
-        });
-    }
-
-    await runSegment({
-        durationMs: Math.min(GREEN_BLINK_SECONDS, greenSeconds) * 1000,
-        activeGroup,
-        activeState: 'blink-green',
-        waitingGroup,
-        waitingState: 'red',
-        activeTimerStartSec: Math.min(GREEN_BLINK_SECONDS, greenSeconds),
-        waitingTimerStartSec: waitingRedAfterSteady
-    });
-
-    await runSegment({
-        durationMs: yellowSeconds * 1000,
-        activeGroup,
-        activeState: 'yellow',
-        waitingGroup,
-        waitingState: 'red',
-        activeTimerStartSec: yellowSeconds,
-        waitingTimerStartSec: waitingRedAfterBlink
-    });
-
-    await runSegment({
-        durationMs: RED_YELLOW_SECONDS * 1000,
-        activeGroup,
-        activeState: 'red',
-        waitingGroup,
-        waitingState: 'red-yellow',
-        activeTimerStartSec: RED_YELLOW_SECONDS,
-        waitingTimerStartSec: RED_YELLOW_SECONDS
-    });
+async function runPhase(phase, green, yellow) {
+    const waitingPhase = phases[phase].opposite;
+    nextPhaseForPanel = waitingPhase;
+    updateNextPanel(latestData);
+    const steadyGreen = Math.max(0, green - GREEN_BLINK_SECONDS);
+    const redTotal = redTimeFor(green, yellow);
+    if (steadyGreen > 0) await segment(phase, 'green', waitingPhase, 'red', steadyGreen, green, redTotal);
+    await segment(phase, 'blink-green', waitingPhase, 'red', Math.min(GREEN_BLINK_SECONDS, green), Math.min(GREEN_BLINK_SECONDS, green), redTotal - steadyGreen);
+    await segment(phase, 'yellow', waitingPhase, 'red', yellow, yellow, yellow + RED_YELLOW_SECONDS);
+    await segment(phase, 'red', waitingPhase, 'red-yellow', RED_YELLOW_SECONDS, RED_YELLOW_SECONDS, RED_YELLOW_SECONDS);
 }
 
 async function trafficLoop() {
     if (trafficLoopStarted) return;
     trafficLoopStarted = true;
-
     setGroup('horizontal', 'red');
     setGroup('vertical', 'red');
     setGroupTimers('horizontal', 0, 'red');
     setGroupTimers('vertical', 0, 'red');
-
+    let nextPhase = null;
     while (true) {
-        const data = await loadTrafficData();
-
+        const data = await loadData();
         if (!data || !data.processing_started) {
-            setWaitingPanel();
+            nextPhase = null;
+            nextPhaseForPanel = null;
+            waitingPanel();
             await sleep(500);
             continue;
         }
-
-        const phase = chooseAdaptivePhase(data);
-        const greenSeconds = getGreenSeconds(data, phase);
-        const yellowSeconds = getYellowSeconds(data);
-
-        await runAdaptivePhase(phase, greenSeconds, yellowSeconds);
-        rememberCompletedPhase(phase);
+        if (!nextPhase) nextPhase = firstPhase(data);
+        nextPhaseForPanel = phases[nextPhase].opposite;
+        updateNextPanel(data);
+        await runPhase(nextPhase, greenTime(data, nextPhase), yellowTime(data));
+        nextPhase = phases[nextPhase].opposite;
     }
 }
 
-setInterval(updateCounts, 500);
+setInterval(loadData, 500);
 
 if (processingStarted) {
-    updateCounts();
+    loadData();
     trafficLoop();
 } else {
     setGroup('horizontal', 'red');
     setGroup('vertical', 'red');
     setGroupTimers('horizontal', 0, 'red');
     setGroupTimers('vertical', 0, 'red');
-    setWaitingPanel();
+    waitingPanel();
 }
