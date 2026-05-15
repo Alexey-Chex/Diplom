@@ -16,7 +16,6 @@
         <div class="intersection-container">
             <img src="{{ url_for('static', filename='images/intersection.png') }}" class="intersection-bg" alt="Перекрёсток">
 
-            <!-- Светофоры -->
             <div class="traffic-light tl-top" data-dir="top">
                 <div class="light red"></div>
                 <div class="light yellow"></div>
@@ -45,11 +44,9 @@
                 <div class="light-timer timer-red">0</div>
             </div>
 
-            <!-- Верх -->
             <div class="video-slot top">
                 <label for="top">Верхняя камера</label>
                 <input type="file" name="top" id="top" accept="video/*">
-
                 {% if processed and available_streams.top %}
                     <img id="top-preview" class="stream-frame" src="{{ url_for('video_feed', direction='top') }}" alt="Поток top">
                     <p id="top-info">Машин: 0</p>
@@ -59,11 +56,9 @@
                 {% endif %}
             </div>
 
-            <!-- Низ -->
             <div class="video-slot bottom">
                 <label for="bottom">Нижняя камера</label>
                 <input type="file" name="bottom" id="bottom" accept="video/*">
-
                 {% if processed and available_streams.bottom %}
                     <img id="bottom-preview" class="stream-frame" src="{{ url_for('video_feed', direction='bottom') }}" alt="Поток bottom">
                     <p id="bottom-info">Машин: 0</p>
@@ -73,11 +68,9 @@
                 {% endif %}
             </div>
 
-            <!-- Лево -->
             <div class="video-slot left">
                 <label for="left">Левая камера</label>
                 <input type="file" name="left" id="left" accept="video/*">
-
                 {% if processed and available_streams.left %}
                     <img id="left-preview" class="stream-frame" src="{{ url_for('video_feed', direction='left') }}" alt="Поток left">
                     <p id="left-info">Машин: 0</p>
@@ -87,11 +80,9 @@
                 {% endif %}
             </div>
 
-            <!-- Право -->
             <div class="video-slot right">
                 <label for="right">Правая камера</label>
                 <input type="file" name="right" id="right" accept="video/*">
-
                 {% if processed and available_streams.right %}
                     <img id="right-preview" class="stream-frame" src="{{ url_for('video_feed', direction='right') }}" alt="Поток right">
                     <p id="right-info">Машин: 0</p>
@@ -105,65 +96,63 @@
         <div class="adaptive-panel">
             <h2>Адаптивное управление</h2>
 
-            <div class="adaptive-section-title">Текущий цикл светофора</div>
-            <div class="adaptive-grid adaptive-grid-current">
-                <div class="adaptive-card adaptive-card-green">
-                    <span id="current-green-direction">Ожидание запуска</span>
-                    <strong id="current-green-time">0 сек</strong>
-                </div>
+            <div class="adaptive-columns">
+                <section class="adaptive-column adaptive-column-current">
+                    <h3>Текущие данные</h3>
 
-                <div class="adaptive-card adaptive-card-red">
-                    <span id="current-red-direction">Ожидание запуска</span>
-                    <strong id="current-red-time">0 сек</strong>
-                </div>
-            </div>
+                    <div class="adaptive-grid adaptive-grid-two">
+                        <div class="adaptive-card adaptive-card-green">
+                            <span id="current-green-direction">Ожидание запуска</span>
+                            <strong id="current-green-time">0 сек</strong>
+                        </div>
 
-            <div class="adaptive-section-title">Расчёт для следующего переключения</div>
-            <div class="adaptive-grid">
-                <div class="adaptive-card">
-                    <span>Следующее направление</span>
-                    <strong id="next-phase">Ожидание запуска</strong>
-                </div>
+                        <div class="adaptive-card adaptive-card-red">
+                            <span id="current-red-direction">Ожидание запуска</span>
+                            <strong id="current-red-time">0 сек</strong>
+                        </div>
 
-                <div class="adaptive-card">
-                    <span>Рекомендуемый зелёный</span>
-                    <strong id="next-green">0 сек</strong>
-                </div>
+                        <div class="adaptive-card">
+                            <span>Очередь верх/низ</span>
+                            <strong id="up-down-queue">0</strong>
+                        </div>
 
-                <div class="adaptive-card">
-                    <span>Расчётный красный</span>
-                    <strong id="next-red">0 сек</strong>
-                </div>
+                        <div class="adaptive-card">
+                            <span>Очередь лево/право</span>
+                            <strong id="left-right-queue">0</strong>
+                        </div>
 
-                <div class="adaptive-card">
-                    <span>Очередь верх/низ</span>
-                    <strong id="up-down-queue">0</strong>
-                </div>
+                        <div class="adaptive-card">
+                            <span>Приоритет верх/низ</span>
+                            <strong id="up-down-priority">0.00</strong>
+                        </div>
 
-                <div class="adaptive-card">
-                    <span>Очередь лево/право</span>
-                    <strong id="left-right-queue">0</strong>
-                </div>
+                        <div class="adaptive-card">
+                            <span>Приоритет лево/право</span>
+                            <strong id="left-right-priority">0.00</strong>
+                        </div>
+                    </div>
+                </section>
 
-                <div class="adaptive-card">
-                    <span>Зелёный верх/низ</span>
-                    <strong id="up-down-green">0 сек</strong>
-                </div>
+                <section class="adaptive-column adaptive-column-next">
+                    <h3>Следующее переключение</h3>
 
-                <div class="adaptive-card">
-                    <span>Зелёный лево/право</span>
-                    <strong id="left-right-green">0 сек</strong>
-                </div>
+                    <div class="adaptive-grid adaptive-grid-one">
+                        <div class="adaptive-card adaptive-card-main">
+                            <span>Следующее направление</span>
+                            <strong id="next-phase">Ожидание запуска</strong>
+                        </div>
 
-                <div class="adaptive-card">
-                    <span>Приоритет верх/низ</span>
-                    <strong id="up-down-priority">0.00</strong>
-                </div>
+                        <div class="adaptive-card adaptive-card-green">
+                            <span>Рекомендуемый зелёный</span>
+                            <strong id="next-green">0 сек</strong>
+                        </div>
 
-                <div class="adaptive-card">
-                    <span>Приоритет лево/право</span>
-                    <strong id="left-right-priority">0.00</strong>
-                </div>
+                        <div class="adaptive-card adaptive-card-red">
+                            <span>Расчётный красный для противоположного направления</span>
+                            <strong id="next-red">0 сек</strong>
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
 
