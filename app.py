@@ -24,18 +24,20 @@ adaptive_controller = AdaptiveControlModule(
     max_green=30,
     yellow_time=3,
     weight_queue=0.7,
-    weight_wait=0.3
+    weight_wait=0.3,
+    saturation_priority=7.0
 )
 
 latest_counts = {direction: 0 for direction in DIRECTIONS}
 available_streams = {direction: False for direction in DIRECTIONS}
+processing_started = False
 
 latest_direction_metrics = {}
 latest_phase_metrics = {}
 latest_control = {
     'phase_order': ['NS', 'EW'],
     'green_times': {'NS': 10, 'EW': 10},
-    'next_phase': 'NS',
+    'next_phase': None,
     'yellow_time': 3,
     'priorities': {'NS': 0, 'EW': 0}
 }
@@ -70,8 +72,14 @@ def generate_stream(direction):
 
     while True:
         frame = video_data.get_next_frame()
+
         if frame is None:
-            break
+            video_data.reset()
+            frame_index = 0
+            frame = video_data.get_next_frame()
+
+            if frame is None:
+                break
 
         frame_index += 1
 
@@ -108,10 +116,13 @@ def generate_stream(direction):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    global processing_started
+
     message = None
-    processed = False
+    processed = processing_started
 
     if request.method == 'POST':
+        processing_started = True
         processed = True
 
         for direction in DIRECTIONS:
@@ -153,6 +164,8 @@ def video_feed(direction):
 @app.route('/counts')
 def counts():
     response = {
+        'processing_started': processing_started,
+
         'top': latest_counts['top'],
         'bottom': latest_counts['bottom'],
         'left': latest_counts['left'],
@@ -161,7 +174,7 @@ def counts():
         'phase_ns_queue': latest_phase_metrics.get('NS', {}).get('queue_length', 0),
         'phase_ew_queue': latest_phase_metrics.get('EW', {}).get('queue_length', 0),
 
-        'recommended_phase': latest_control.get('next_phase', 'NS'),
+        'recommended_phase': latest_control.get('next_phase'),
         'green_ns': latest_control.get('green_times', {}).get('NS', 10),
         'green_ew': latest_control.get('green_times', {}).get('EW', 10),
         'yellow_time': latest_control.get('yellow_time', 3),
