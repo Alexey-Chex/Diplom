@@ -6,6 +6,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body data-processed="{{ 'true' if processed else 'false' }}">
+    <div class="site-bar site-bar-top"></div>
+
     <main class="app-shell">
         <h1>Система адаптивного управления светофорами</h1>
 
@@ -14,156 +16,161 @@
         {% endif %}
 
         <form method="POST" enctype="multipart/form-data">
+            <div class="workspace">
+                <div class="intersection-container">
+                    <img src="{{ url_for('static', filename='images/intersection.png') }}" class="intersection-bg" alt="Перекрёсток">
 
-            <div class="intersection-container">
-                <img src="{{ url_for('static', filename='images/intersection.png') }}" class="intersection-bg" alt="Перекрёсток">
+                    <div class="traffic-light tl-top" data-dir="top">
+                        <div class="light red"></div>
+                        <div class="light yellow"></div>
+                        <div class="light green"></div>
+                        <div class="light-timer timer-red">0</div>
+                    </div>
 
-                <div class="traffic-light tl-top" data-dir="top">
-                    <div class="light red"></div>
-                    <div class="light yellow"></div>
-                    <div class="light green"></div>
-                    <div class="light-timer timer-red">0</div>
+                    <div class="traffic-light tl-bottom" data-dir="bottom">
+                        <div class="light red"></div>
+                        <div class="light yellow"></div>
+                        <div class="light green"></div>
+                        <div class="light-timer timer-red">0</div>
+                    </div>
+
+                    <div class="traffic-light tl-left" data-dir="left">
+                        <div class="light red"></div>
+                        <div class="light yellow"></div>
+                        <div class="light green"></div>
+                        <div class="light-timer timer-red">0</div>
+                    </div>
+
+                    <div class="traffic-light tl-right" data-dir="right">
+                        <div class="light red"></div>
+                        <div class="light yellow"></div>
+                        <div class="light green"></div>
+                        <div class="light-timer timer-red">0</div>
+                    </div>
+
+                    <div class="video-slot top">
+                        <label for="top">Верхняя камера</label>
+                        <input type="file" name="top" id="top" accept="video/*">
+                        {% if processed and available_streams.top %}
+                            <img id="top-preview" class="stream-frame" src="{{ url_for('video_feed', direction='top') }}" alt="Поток top">
+                            <p id="top-info">Машин: 0</p>
+                        {% else %}
+                            <div id="top-preview" class="empty-preview">Видео не выбрано</div>
+                            <p id="top-info"></p>
+                        {% endif %}
+                    </div>
+
+                    <div class="video-slot bottom">
+                        <label for="bottom">Нижняя камера</label>
+                        <input type="file" name="bottom" id="bottom" accept="video/*">
+                        {% if processed and available_streams.bottom %}
+                            <img id="bottom-preview" class="stream-frame" src="{{ url_for('video_feed', direction='bottom') }}" alt="Поток bottom">
+                            <p id="bottom-info">Машин: 0</p>
+                        {% else %}
+                            <div id="bottom-preview" class="empty-preview">Видео не выбрано</div>
+                            <p id="bottom-info"></p>
+                        {% endif %}
+                    </div>
+
+                    <div class="video-slot left">
+                        <label for="left">Левая камера</label>
+                        <input type="file" name="left" id="left" accept="video/*">
+                        {% if processed and available_streams.left %}
+                            <img id="left-preview" class="stream-frame" src="{{ url_for('video_feed', direction='left') }}" alt="Поток left">
+                            <p id="left-info">Машин: 0</p>
+                        {% else %}
+                            <div id="left-preview" class="empty-preview">Видео не выбрано</div>
+                            <p id="left-info"></p>
+                        {% endif %}
+                    </div>
+
+                    <div class="video-slot right">
+                        <label for="right">Правая камера</label>
+                        <input type="file" name="right" id="right" accept="video/*">
+                        {% if processed and available_streams.right %}
+                            <img id="right-preview" class="stream-frame" src="{{ url_for('video_feed', direction='right') }}" alt="Поток right">
+                            <p id="right-info">Машин: 0</p>
+                        {% else %}
+                            <div id="right-preview" class="empty-preview">Видео не выбрано</div>
+                            <p id="right-info"></p>
+                        {% endif %}
+                    </div>
                 </div>
 
-                <div class="traffic-light tl-bottom" data-dir="bottom">
-                    <div class="light red"></div>
-                    <div class="light yellow"></div>
-                    <div class="light green"></div>
-                    <div class="light-timer timer-red">0</div>
-                </div>
+                <aside class="right-control-panel">
+                    <div class="adaptive-panel">
+                        <h2>Адаптивное управление</h2>
 
-                <div class="traffic-light tl-left" data-dir="left">
-                    <div class="light red"></div>
-                    <div class="light yellow"></div>
-                    <div class="light green"></div>
-                    <div class="light-timer timer-red">0</div>
-                </div>
+                        <div class="adaptive-columns">
+                            <section class="adaptive-column adaptive-column-current">
+                                <h3>Текущие данные</h3>
 
-                <div class="traffic-light tl-right" data-dir="right">
-                    <div class="light red"></div>
-                    <div class="light yellow"></div>
-                    <div class="light green"></div>
-                    <div class="light-timer timer-red">0</div>
-                </div>
+                                <div class="adaptive-grid adaptive-grid-two">
+                                    <div class="adaptive-card adaptive-card-green">
+                                        <span id="current-green-direction">Ожидание запуска</span>
+                                        <strong id="current-green-time">0 сек</strong>
+                                    </div>
 
-                <div class="video-slot top">
-                    <label for="top">Верхняя камера</label>
-                    <input type="file" name="top" id="top" accept="video/*">
-                    {% if processed and available_streams.top %}
-                        <img id="top-preview" class="stream-frame" src="{{ url_for('video_feed', direction='top') }}" alt="Поток top">
-                        <p id="top-info">Машин: 0</p>
-                    {% else %}
-                        <div id="top-preview" class="empty-preview">Видео не выбрано</div>
-                        <p id="top-info"></p>
-                    {% endif %}
-                </div>
+                                    <div class="adaptive-card adaptive-card-red">
+                                        <span id="current-red-direction">Ожидание запуска</span>
+                                        <strong id="current-red-time">0 сек</strong>
+                                    </div>
 
-                <div class="video-slot bottom">
-                    <label for="bottom">Нижняя камера</label>
-                    <input type="file" name="bottom" id="bottom" accept="video/*">
-                    {% if processed and available_streams.bottom %}
-                        <img id="bottom-preview" class="stream-frame" src="{{ url_for('video_feed', direction='bottom') }}" alt="Поток bottom">
-                        <p id="bottom-info">Машин: 0</p>
-                    {% else %}
-                        <div id="bottom-preview" class="empty-preview">Видео не выбрано</div>
-                        <p id="bottom-info"></p>
-                    {% endif %}
-                </div>
+                                    <div class="adaptive-card">
+                                        <span>Очередь верх/низ</span>
+                                        <strong id="up-down-queue">0</strong>
+                                    </div>
 
-                <div class="video-slot left">
-                    <label for="left">Левая камера</label>
-                    <input type="file" name="left" id="left" accept="video/*">
-                    {% if processed and available_streams.left %}
-                        <img id="left-preview" class="stream-frame" src="{{ url_for('video_feed', direction='left') }}" alt="Поток left">
-                        <p id="left-info">Машин: 0</p>
-                    {% else %}
-                        <div id="left-preview" class="empty-preview">Видео не выбрано</div>
-                        <p id="left-info"></p>
-                    {% endif %}
-                </div>
+                                    <div class="adaptive-card">
+                                        <span>Очередь лево/право</span>
+                                        <strong id="left-right-queue">0</strong>
+                                    </div>
 
-                <div class="video-slot right">
-                    <label for="right">Правая камера</label>
-                    <input type="file" name="right" id="right" accept="video/*">
-                    {% if processed and available_streams.right %}
-                        <img id="right-preview" class="stream-frame" src="{{ url_for('video_feed', direction='right') }}" alt="Поток right">
-                        <p id="right-info">Машин: 0</p>
-                    {% else %}
-                        <div id="right-preview" class="empty-preview">Видео не выбрано</div>
-                        <p id="right-info"></p>
-                    {% endif %}
-                </div>
-            </div>
+                                    <div class="adaptive-card">
+                                        <span>Приоритет верх/низ</span>
+                                        <strong id="up-down-priority">0.00</strong>
+                                    </div>
 
-            <div class="adaptive-panel">
-                <h2>Адаптивное управление</h2>
+                                    <div class="adaptive-card">
+                                        <span>Приоритет лево/право</span>
+                                        <strong id="left-right-priority">0.00</strong>
+                                    </div>
+                                </div>
+                            </section>
 
-                <div class="adaptive-columns">
-                    <section class="adaptive-column adaptive-column-current">
-                        <h3>Текущие данные</h3>
+                            <section class="adaptive-column adaptive-column-next">
+                                <h3>Следующее переключение</h3>
 
-                        <div class="adaptive-grid adaptive-grid-two">
-                            <div class="adaptive-card adaptive-card-green">
-                                <span id="current-green-direction">Ожидание запуска</span>
-                                <strong id="current-green-time">0 сек</strong>
-                            </div>
+                                <div class="adaptive-grid adaptive-grid-one">
+                                    <div class="adaptive-card adaptive-card-main">
+                                        <span>Следующее направление</span>
+                                        <strong id="next-phase">Ожидание запуска</strong>
+                                    </div>
 
-                            <div class="adaptive-card adaptive-card-red">
-                                <span id="current-red-direction">Ожидание запуска</span>
-                                <strong id="current-red-time">0 сек</strong>
-                            </div>
+                                    <div class="adaptive-card adaptive-card-green">
+                                        <span>Рекомендуемый зелёный</span>
+                                        <strong id="next-green">0 сек</strong>
+                                    </div>
 
-                            <div class="adaptive-card">
-                                <span>Очередь верх/низ</span>
-                                <strong id="up-down-queue">0</strong>
-                            </div>
-
-                            <div class="adaptive-card">
-                                <span>Очередь лево/право</span>
-                                <strong id="left-right-queue">0</strong>
-                            </div>
-
-                            <div class="adaptive-card">
-                                <span>Приоритет верх/низ</span>
-                                <strong id="up-down-priority">0.00</strong>
-                            </div>
-
-                            <div class="adaptive-card">
-                                <span>Приоритет лево/право</span>
-                                <strong id="left-right-priority">0.00</strong>
-                            </div>
+                                    <div class="adaptive-card adaptive-card-red">
+                                        <span>Рекомендуемый красный</span>
+                                        <strong id="next-red">0 сек</strong>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
-                    </section>
+                    </div>
 
-                    <section class="adaptive-column adaptive-column-next">
-                        <h3>Следующее переключение</h3>
-
-                        <div class="adaptive-grid adaptive-grid-one">
-                            <div class="adaptive-card adaptive-card-main">
-                                <span>Следующее направление</span>
-                                <strong id="next-phase">Ожидание запуска</strong>
-                            </div>
-
-                            <div class="adaptive-card adaptive-card-green">
-                                <span>Рекомендуемый зелёный</span>
-                                <strong id="next-green">0 сек</strong>
-                            </div>
-
-                            <div class="adaptive-card adaptive-card-red">
-                                <span>Рекомендуемый красный</span>
-                                <strong id="next-red">0 сек</strong>
-                            </div>
-                        </div>
-                    </section>
-                </div>
-            </div>
-
-            <div class="buttons">
-                <button type="submit">Запустить обработку</button>
-                <button type="button" id="reset-button" class="reset-button">Сбросить симуляцию</button>
+                    <div class="buttons">
+                        <button type="submit">Запустить обработку</button>
+                        <button type="button" id="reset-button" class="reset-button">Сбросить симуляцию</button>
+                    </div>
+                </aside>
             </div>
         </form>
     </main>
+
+    <div class="site-bar site-bar-bottom"></div>
 
     <script src="{{ url_for('static', filename='js/traffic.js') }}"></script>
 </body>
