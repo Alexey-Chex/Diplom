@@ -105,45 +105,64 @@
         <div class="adaptive-panel">
             <h2>Адаптивное управление</h2>
 
+            <div class="adaptive-section-title">Текущий цикл светофора</div>
+            <div class="adaptive-grid adaptive-grid-current">
+                <div class="adaptive-card adaptive-card-green">
+                    <span id="current-green-direction">Ожидание запуска</span>
+                    <strong id="current-green-time">0 сек</strong>
+                </div>
+
+                <div class="adaptive-card adaptive-card-red">
+                    <span id="current-red-direction">Ожидание запуска</span>
+                    <strong id="current-red-time">0 сек</strong>
+                </div>
+            </div>
+
+            <div class="adaptive-section-title">Расчёт для следующего переключения</div>
             <div class="adaptive-grid">
                 <div class="adaptive-card">
-                    <span>Текущая фаза</span>
-                    <strong id="current-phase">Ожидание данных</strong>
+                    <span>Следующее направление</span>
+                    <strong id="next-phase">Ожидание запуска</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Рекомендуемая фаза</span>
-                    <strong id="recommended-phase">Ожидание данных</strong>
+                    <span>Рекомендуемый зелёный</span>
+                    <strong id="next-green">0 сек</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Зелёный текущей фазы</span>
-                    <strong id="current-green">0 сек</strong>
+                    <span>Расчётный красный</span>
+                    <strong id="next-red">0 сек</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Очередь NS</span>
-                    <strong id="ns-queue">0</strong>
+                    <span>Очередь верх/низ</span>
+                    <strong id="up-down-queue">0</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Очередь EW</span>
-                    <strong id="ew-queue">0</strong>
+                    <span>Очередь лево/право</span>
+                    <strong id="left-right-queue">0</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Зелёный NS</span>
-                    <strong id="ns-green">0 сек</strong>
+                    <span>Зелёный верх/низ</span>
+                    <strong id="up-down-green">0 сек</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Зелёный EW</span>
-                    <strong id="ew-green">0 сек</strong>
+                    <span>Зелёный лево/право</span>
+                    <strong id="left-right-green">0 сек</strong>
                 </div>
 
                 <div class="adaptive-card">
-                    <span>Приоритет NS / EW</span>
-                    <strong><span id="ns-priority">0.00</span> / <span id="ew-priority">0.00</span></strong>
+                    <span>Приоритет верх/низ</span>
+                    <strong id="up-down-priority">0.00</strong>
+                </div>
+
+                <div class="adaptive-card">
+                    <span>Приоритет лево/право</span>
+                    <strong id="left-right-priority">0.00</strong>
                 </div>
             </div>
         </div>
