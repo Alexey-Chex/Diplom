@@ -169,7 +169,6 @@ def index():
                 latest_counts[direction] = 0
 
         update_control_state()
-        message = "Обработка видео запущена!"
 
     return render_template(
         'index.html',
