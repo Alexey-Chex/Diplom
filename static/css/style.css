@@ -121,12 +121,12 @@ h1 {
 }
 
 .top {
-    top: 5px;
-    left: 60px;
+    top: 21px;
+    left: 66px;
 }
 
 .bottom {
-    bottom: 20px;
+    bottom: 59px;
     right: 40px;
 }
 
@@ -136,8 +136,8 @@ h1 {
 }
 
 .right {
-    top: 10px;
-    right: 20px;
+    top: 17px;
+    right: 11px;
 }
 
 .right-control-panel {
@@ -221,13 +221,13 @@ button:hover {
 }
 
 .tl-top {
-    top: 190px;
-    left: 340px;
+    top: 192px;
+    left: 345px;
 }
 
 .tl-bottom {
-    top: 450px;
-    right: 320px;
+    top: 455px;
+    right: 329px;
 }
 
 .tl-left {
@@ -236,8 +236,8 @@ button:hover {
 }
 
 .tl-right {
-    top: 230px;
-    right: 300px;
+    top: 235px;
+    right: 289px;
 }
 
 .light-timer {
@@ -376,4 +376,96 @@ button:hover {
 
 .adaptive-card-red strong {
     color: #b42323;
+}
+
+/* Пешеходные светофоры */
+
+.pedestrian-signal {
+    position: absolute;
+    width: 34px;
+    height: 56px;
+    padding: 4px;
+    box-sizing: border-box;
+    background: #1d1d1d;
+    border-radius: 8px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+    z-index: 27;
+}
+
+.ped-timer {
+    width: 24px;
+    height: 16px;
+    margin: 0 auto 4px;
+    border-radius: 4px;
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid #666;
+    color: #ff4d4d;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 16px;
+    text-align: center;
+}
+
+.ped-icon-box {
+    width: 24px;
+    height: 28px;
+    margin: 0 auto;
+    border-radius: 5px;
+    background: #2b2b2b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ped-icon {
+    width: 18px;
+    height: 20px;
+    display: block;
+    color: #ff4d4d;
+}
+
+.ped-icon path {
+    fill: currentColor;
+}
+
+.pedestrian-signal.ped-green .ped-icon {
+    color: limegreen;
+    filter: drop-shadow(0 0 4px limegreen);
+}
+
+.pedestrian-signal.ped-green .ped-timer {
+    color: limegreen;
+    border-color: limegreen;
+}
+
+.pedestrian-signal.ped-red .ped-icon {
+    color: #ff4d4d;
+    filter: drop-shadow(0 0 4px #ff4d4d);
+}
+
+.pedestrian-signal.ped-red .ped-timer {
+    color: #ff4d4d;
+    border-color: #ff4d4d;
+}
+
+/* Примерные позиции на перекрёстке */
+
+.ped-top {
+    top: 283px;
+    left: 439px;
+}
+
+.ped-bottom {
+    top: 444px;
+    left: 440px;
+}
+
+.ped-left {
+    top: 360px;
+    left: 368px;
+}
+
+.ped-right {
+    top: 361px;
+    right: 358px;
 }
