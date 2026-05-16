@@ -26,6 +26,7 @@ let trafficLoopStarted = false;
 let latestData = null;
 let nextPhaseForPanel = null;
 let preparedNextPlan = null;
+let nextPlanLocked = false;
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function num(value, fallback = 0) {
@@ -85,8 +86,14 @@ function showNextPlan(plan) {
     text('next-red', plan.red + ' сек');
 }
 
-function prepareNextPlan(data, phase) {
+function prepareNextPlan(data, phase, force = false) {
     if (!data || !data.processing_started || !phase) return null;
+
+    if (nextPlanLocked && !force && preparedNextPlan) {
+        showNextPlan(preparedNextPlan);
+        return preparedNextPlan;
+    }
+
     preparedNextPlan = makePlan(data, phase);
     showNextPlan(preparedNextPlan);
     return preparedNextPlan;
@@ -150,6 +157,7 @@ function resetLocalState() {
     latestData = null;
     nextPhaseForPanel = null;
     preparedNextPlan = null;
+    nextPlanLocked = false;
     document.body.dataset.processed = 'false';
     setGroup('horizontal', 'red');
     setGroup('vertical', 'red');
@@ -292,20 +300,18 @@ function updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, 
     text('current-red-time', sec(waitingLeft));
 }
 
-function getActivePedestrianRedSeconds(activeState, activeLeft) {
-    const nextRed = preparedNextPlan ? preparedNextPlan.red : 0;
-
-    if (activeState === 'yellow') {
-        return activeLeft + nextRed;
+function getActivePedestrianRedSeconds(activeState, activeLeft, fixedRedLeft = null) {
+    if (fixedRedLeft !== null) {
+        return fixedRedLeft;
     }
 
     return activeLeft;
 }
 
-function updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPhase, waitingLeft, visible) {
+function updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPhase, waitingLeft, visible, fixedActivePedestrianRedLeft = null) {
     const pedGreenLeft = Math.max(0, activeLeft - PEDESTRIAN_OFFSET_SECONDS);
     const activePedState = pedGreenLeft > 0 && (activeState === 'green' || activeState === 'blink-green') ? 'green' : 'red';
-    const activePedSeconds = activePedState === 'green' ? pedGreenLeft : getActivePedestrianRedSeconds(activeState, activeLeft);
+    const activePedSeconds = activePedState === 'green' ? pedGreenLeft : getActivePedestrianRedSeconds(activeState, activeLeft, fixedActivePedestrianRedLeft);
     const activePedVisible = activePedState === 'green' && Math.ceil(pedGreenLeft) <= PEDESTRIAN_BLINK_SECONDS ? visible : true;
 
     setPedestrianGroup(activePhase, activePedState, activePedSeconds, activePedVisible);
@@ -382,7 +388,7 @@ async function sendTimerLog() {
     }
 }
 
-async function segment(activePhase, activeState, waitingPhase, waitingState, duration, activeStart, waitingStart) {
+async function segment(activePhase, activeState, waitingPhase, waitingState, duration, activeStart, waitingStart, options = {}) {
     const activeGroup = phases[activePhase].group;
     const waitingGroup = phases[waitingPhase].group;
     const start = performance.now();
@@ -399,15 +405,19 @@ async function segment(activePhase, activeState, waitingPhase, waitingState, dur
             visible = !visible;
             lastBlink = now;
         }
-        const activeLeft = Math.max(0.1, activeStart - elapsed / 1000);
-        const waitingLeft = Math.max(0.1, waitingStart - elapsed / 1000);
+        const elapsedSeconds = elapsed / 1000;
+        const activeLeft = Math.max(0.1, activeStart - elapsedSeconds);
+        const waitingLeft = Math.max(0.1, waitingStart - elapsedSeconds);
         const waitingDisplayState = getWaitingDisplayState(waitingState, waitingLeft);
+        const fixedActivePedestrianRedLeft = options.activePedestrianRedStart
+            ? Math.max(0.1, options.activePedestrianRedStart - elapsedSeconds)
+            : null;
 
         applyGroup(activeGroup, activeState, visible);
         applyGroup(waitingGroup, waitingDisplayState);
         setGroupTimers(activeGroup, activeLeft, activeState);
         setGroupTimers(waitingGroup, waitingLeft, waitingDisplayState);
-        updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPhase, waitingLeft, visible);
+        updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPhase, waitingLeft, visible, fixedActivePedestrianRedLeft);
         updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, waitingDisplayState, waitingLeft);
         await sleep(100);
     }
@@ -425,7 +435,23 @@ async function runPhase(plan) {
     const redTotal = plan.red;
     if (steadyGreen > 0) await segment(phase, 'green', waitingPhase, 'red', steadyGreen, green, redTotal);
     await segment(phase, 'blink-green', waitingPhase, 'red', Math.min(GREEN_BLINK_SECONDS, green), Math.min(GREEN_BLINK_SECONDS, green), redTotal - steadyGreen);
-    await segment(phase, 'yellow', waitingPhase, 'red', yellow, yellow, yellow + RED_YELLOW_SECONDS);
+
+    const frozenNextPlan = prepareNextPlan(latestData, waitingPhase, true) || preparedNextPlan || makePlan(latestData, waitingPhase);
+    nextPlanLocked = true;
+    const activePedestrianRedStart = yellow + frozenNextPlan.red;
+
+    await segment(
+        phase,
+        'yellow',
+        waitingPhase,
+        'red',
+        yellow,
+        yellow,
+        yellow + RED_YELLOW_SECONDS,
+        { activePedestrianRedStart }
+    );
+
+    nextPlanLocked = false;
 
     if (RED_YELLOW_SECONDS > 0) {
         await segment(phase, 'red', waitingPhase, 'red-yellow', RED_YELLOW_SECONDS, RED_YELLOW_SECONDS, RED_YELLOW_SECONDS);
@@ -448,6 +474,7 @@ async function trafficLoop() {
             nextPhase = null;
             nextPhaseForPanel = null;
             preparedNextPlan = null;
+            nextPlanLocked = false;
             waitingPanel();
             await sleep(500);
             continue;
