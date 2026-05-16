@@ -120,10 +120,23 @@ function setPedestrianGroup(phase, state, seconds, visible = true) {
     });
 }
 
+function setAdaptiveCardState(elementId, state) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    const card = element.closest('.adaptive-card');
+    if (!card) return;
+
+    card.classList.remove('adaptive-card-green', 'adaptive-card-red');
+    card.classList.add(state === 'green' ? 'adaptive-card-green' : 'adaptive-card-red');
+}
+
 function setPedestrianInfo(phase, state, seconds) {
     const id = phase === 'NS' ? 'ped-left-right-info' : 'ped-up-down-info';
     const label = state === 'green' ? 'Зелёный: ' : 'Красный: ';
+
     text(id, label + sec(seconds));
+    setAdaptiveCardState(id, state);
 }
 
 function setAllPedestriansToRed() {
@@ -279,10 +292,20 @@ function updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, 
     text('current-red-time', sec(waitingLeft));
 }
 
+function getActivePedestrianRedSeconds(activeState, activeLeft) {
+    const nextRed = preparedNextPlan ? preparedNextPlan.red : 0;
+
+    if (activeState === 'yellow') {
+        return activeLeft + nextRed;
+    }
+
+    return activeLeft;
+}
+
 function updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPhase, waitingLeft, visible) {
     const pedGreenLeft = Math.max(0, activeLeft - PEDESTRIAN_OFFSET_SECONDS);
     const activePedState = pedGreenLeft > 0 && (activeState === 'green' || activeState === 'blink-green') ? 'green' : 'red';
-    const activePedSeconds = activePedState === 'green' ? pedGreenLeft : activeLeft;
+    const activePedSeconds = activePedState === 'green' ? pedGreenLeft : getActivePedestrianRedSeconds(activeState, activeLeft);
     const activePedVisible = activePedState === 'green' && Math.ceil(pedGreenLeft) <= PEDESTRIAN_BLINK_SECONDS ? visible : true;
 
     setPedestrianGroup(activePhase, activePedState, activePedSeconds, activePedVisible);
