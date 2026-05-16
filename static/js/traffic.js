@@ -2,7 +2,7 @@ const GREEN_BLINK_SECONDS = 3;
 const DEFAULT_YELLOW_SECONDS = 3;
 const RED_YELLOW_SECONDS = 0;
 const DEFAULT_GREEN_SECONDS = 10;
-const PEDESTRIAN_OFFSET_SECONDS = 4;
+const PEDESTRIAN_OFFSET_SECONDS = 0;
 const PEDESTRIAN_BLINK_SECONDS = 3;
 
 const processingStarted = document.body.dataset.processed === 'true' || document.querySelector('.stream-frame') !== null;
