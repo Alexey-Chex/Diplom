@@ -314,6 +314,74 @@ function updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPh
     setPedestrianInfo(waitingPhase, 'red', waitingLeft);
 }
 
+function getCarSignalState(direction) {
+    const light = document.querySelector('.traffic-light[data-dir="' + direction + '"]');
+    if (!light) return 'unknown';
+
+    const red = light.querySelector('.red')?.classList.contains('active');
+    const yellow = light.querySelector('.yellow')?.classList.contains('active');
+    const green = light.querySelector('.green')?.classList.contains('active');
+
+    if (red && yellow) return 'red+orange';
+    if (red) return 'red';
+    if (yellow) return 'orange';
+    if (green) return 'green';
+    return 'off';
+}
+
+function getCarTimer(direction) {
+    const timer = document.querySelector('.traffic-light[data-dir="' + direction + '"] .light-timer');
+    return timer ? timer.textContent.trim() : '0';
+}
+
+function getPedestrianSignalState(direction) {
+    const signal = document.querySelector('.pedestrian-signal[data-ped="' + direction + '"]');
+    if (!signal) return 'unknown';
+
+    if (signal.classList.contains('ped-green')) return 'green';
+    if (signal.classList.contains('ped-red')) return 'red';
+    if (signal.classList.contains('ped-off')) return 'green blink off';
+    return 'off';
+}
+
+function getPedestrianTimer(direction) {
+    const timer = document.querySelector('.pedestrian-signal[data-ped="' + direction + '"] .ped-timer');
+    return timer ? timer.textContent.trim() : '0';
+}
+
+function collectTimerLogData() {
+    const cars = {};
+    const pedestrians = {};
+
+    ['top', 'bottom', 'left', 'right'].forEach(direction => {
+        cars[direction] = {
+            seconds: getCarTimer(direction),
+            signal: getCarSignalState(direction)
+        };
+
+        pedestrians[direction] = {
+            seconds: getPedestrianTimer(direction),
+            signal: getPedestrianSignalState(direction)
+        };
+    });
+
+    return { cars, pedestrians };
+}
+
+async function sendTimerLog() {
+    if (!latestData || !latestData.processing_started) return;
+
+    try {
+        await fetch('/timer_log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(collectTimerLogData())
+        });
+    } catch (e) {
+        console.log('Не удалось записать лог таймеров');
+    }
+}
+
 async function segment(activePhase, activeState, waitingPhase, waitingState, duration, activeStart, waitingStart) {
     const activeGroup = phases[activePhase].group;
     const waitingGroup = phases[waitingPhase].group;
@@ -402,6 +470,7 @@ if (resetButton) {
 }
 
 setInterval(loadData, 500);
+setInterval(sendTimerLog, 1000);
 
 if (processingStarted) {
     loadData();
