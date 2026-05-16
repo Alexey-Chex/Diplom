@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, Response, jsonify
+from flask import Flask, render_template, request, Response, jsonify, send_file
 import os
 import cv2
+from datetime import datetime
 
 from modules.video_data import VideoData
 from modules.frame_processor import FrameProcessor
@@ -12,7 +13,11 @@ from modules.adaptive_control import AdaptiveControlModule
 app = Flask(__name__)
 
 UPLOAD_FOLDER = 'static/uploads'
+LOG_FOLDER = 'logs'
+TIMER_LOG_PATH = os.path.join(LOG_FOLDER, 'timer_log.txt')
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(LOG_FOLDER, exist_ok=True)
 
 DIRECTIONS = ['left', 'right', 'top', 'bottom']
 
@@ -57,6 +62,36 @@ def get_video_path(direction):
     return os.path.join(UPLOAD_FOLDER, f'{direction}.mp4')
 
 
+def clear_timer_log():
+    with open(TIMER_LOG_PATH, 'w', encoding='utf-8') as log_file:
+        log_file.write('Лог таймеров светофоров\n')
+        log_file.write('Формат: время, транспортные светофоры, пешеходные светофоры\n')
+        log_file.write('=' * 70 + '\n\n')
+
+
+def append_timer_log(log_data):
+    current_time = datetime.now().strftime('%H:%M:%S')
+    cars = log_data.get('cars', {})
+    pedestrians = log_data.get('pedestrians', {})
+
+    with open(TIMER_LOG_PATH, 'a', encoding='utf-8') as log_file:
+        log_file.write(f'{current_time}\n')
+
+        for direction in ['top', 'bottom', 'left', 'right']:
+            item = cars.get(direction, {})
+            signal = item.get('signal', 'unknown')
+            seconds = item.get('seconds', '0')
+            log_file.write(f'tl_car_{direction}: {seconds} сек, {signal}\n')
+
+        for direction in ['top', 'bottom', 'left', 'right']:
+            item = pedestrians.get(direction, {})
+            signal = item.get('signal', 'unknown')
+            seconds = item.get('seconds', '0')
+            log_file.write(f'tl_pedestrian_{direction}: {seconds} сек, {signal}\n')
+
+        log_file.write('\n')
+
+
 def update_control_state():
     global latest_direction_metrics, latest_phase_metrics, latest_control
 
@@ -87,6 +122,7 @@ def reset_simulation_state(delete_uploaded_files=True):
     latest_direction_metrics = {}
     latest_phase_metrics = {}
     latest_control = get_initial_control_state()
+    clear_timer_log()
 
 
 def generate_stream(direction):
@@ -156,6 +192,7 @@ def index():
     if request.method == 'POST':
         processing_started = True
         processed = True
+        clear_timer_log()
 
         for direction in DIRECTIONS:
             file = request.files.get(direction)
@@ -196,6 +233,29 @@ def video_feed(direction):
 def reset():
     reset_simulation_state(delete_uploaded_files=True)
     return jsonify({'status': 'ok', 'message': 'Симуляция сброшена'})
+
+
+@app.route('/timer_log', methods=['POST'])
+def timer_log():
+    if not processing_started:
+        return jsonify({'status': 'ignored', 'message': 'Обработка не запущена'})
+
+    log_data = request.get_json(silent=True) or {}
+    append_timer_log(log_data)
+    return jsonify({'status': 'ok'})
+
+
+@app.route('/timer_log/download')
+def download_timer_log():
+    if not os.path.exists(TIMER_LOG_PATH):
+        clear_timer_log()
+
+    return send_file(
+        TIMER_LOG_PATH,
+        as_attachment=True,
+        download_name='timer_log.txt',
+        mimetype='text/plain'
+    )
 
 
 @app.route('/counts')
