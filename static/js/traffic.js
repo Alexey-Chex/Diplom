@@ -4,7 +4,6 @@ const RED_YELLOW_SECONDS = 0;
 const DEFAULT_GREEN_SECONDS = 10;
 const PEDESTRIAN_OFFSET_SECONDS = 0;
 const PEDESTRIAN_BLINK_SECONDS = 3;
-const MAX_SWITCH_HISTORY_ITEMS = 100;
 
 const processingStarted = document.body.dataset.processed === 'true' || document.querySelector('.stream-frame') !== null;
 
@@ -28,45 +27,35 @@ const pedestrianGroups = {
     EW: ['top', 'bottom']
 };
 
+const pedestrianInfoIds = {
+    NS: 'ped-lenina-info',
+    EW: 'ped-nagibina-info'
+};
+
 let trafficLoopStarted = false;
 let latestData = null;
 let nextPhaseForPanel = null;
 let preparedNextPlan = null;
 let nextPlanLocked = false;
-let switchHistory = [];
-let selectedHistoryDate = getTodayKey();
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
 function num(value, fallback = 0) {
     const result = Number(value);
     return Number.isFinite(result) ? result : fallback;
 }
-function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
 function text(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
 }
-function sec(value) { return Math.max(0, Math.ceil(value)) + ' сек'; }
-function pad(value) { return String(value).padStart(2, '0'); }
-function getTodayKey() {
-    const now = new Date();
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-function getClockTime(date) {
-    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-function formatDateLabel(dateKey) {
-    if (!dateKey || !dateKey.includes('-')) return dateKey || '';
-    const [year, month, day] = dateKey.split('-');
-    return `${day}.${month}.${year}`;
-}
-function escapeHtml(value) {
-    return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+
+function sec(value) {
+    return Math.max(0, Math.ceil(value)) + ' сек';
 }
 
 function queue(data, phase) {
@@ -103,6 +92,7 @@ function firstPhase(data) {
 function makePlan(data, phase) {
     const green = greenTime(data, phase);
     const yellow = yellowTime(data);
+
     return {
         phase,
         green,
@@ -132,681 +122,6 @@ function prepareNextPlan(data, phase, force = false) {
     return preparedNextPlan;
 }
 
-function setCardLabel(valueId, label) {
-    const value = document.getElementById(valueId);
-    const labelElement = value?.previousElementSibling;
-    if (labelElement) labelElement.textContent = label;
-}
-
-function updateStaticStreetLabels() {
-    setCardLabel('up-down-queue', 'Очередь ' + streetLabels.NS);
-    setCardLabel('left-right-queue', 'Очередь ' + streetLabels.EW);
-    setCardLabel('up-down-priority', 'Приоритет ' + streetLabels.NS);
-    setCardLabel('left-right-priority', 'Приоритет ' + streetLabels.EW);
-    setCardLabel('ped-left-right-info', 'Пешеходы ' + streetLabels.EW);
-    setCardLabel('ped-up-down-info', 'Пешеходы ' + streetLabels.NS);
-}
-
-function injectLayoutStyles() {
-    if (document.getElementById('layout-adjustments-styles')) return;
-
-    const style = document.createElement('style');
-    style.id = 'layout-adjustments-styles';
-    style.textContent = `
-        .left-workspace-panel {
-            width: 900px;
-            max-width: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .left-workspace-panel .buttons {
-            width: 100%;
-            margin-top: 10px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .left-workspace-panel .buttons button {
-            width: 100%;
-            min-height: 92px;
-            padding: 14px 18px;
-            border-radius: 10px;
-            font-size: 18px;
-            line-height: 1.2;
-        }
-
-        .right-control-panel {
-            gap: 0;
-        }
-    `;
-
-    document.head.appendChild(style);
-}
-
-function setupMainLayout() {
-    injectLayoutStyles();
-
-    const workspace = document.querySelector('.workspace');
-    const intersection = document.querySelector('.intersection-container');
-    const buttons = document.querySelector('.right-control-panel .buttons');
-
-    if (!workspace || !intersection || !buttons || document.querySelector('.left-workspace-panel')) return;
-
-    const leftPanel = document.createElement('div');
-    leftPanel.className = 'left-workspace-panel';
-
-    workspace.insertBefore(leftPanel, intersection);
-    leftPanel.appendChild(intersection);
-    leftPanel.appendChild(buttons);
-}
-
-function injectSwitchHistoryStyles() {
-    if (document.getElementById('switch-history-styles')) return;
-
-    const style = document.createElement('style');
-    style.id = 'switch-history-styles';
-    style.textContent = `
-        .switch-history-toggle {
-            position: fixed;
-            top: 50%;
-            right: 0;
-            transform: translateY(-50%);
-            z-index: 120;
-            width: 42px;
-            min-height: 132px;
-            padding: 10px 6px;
-            border: none;
-            border-radius: 12px 0 0 12px;
-            background: #2f6fed;
-            color: #fff;
-            font-weight: 700;
-            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
-            cursor: pointer;
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            transition: transform 0.25s ease, opacity 0.2s ease;
-        }
-
-        .switch-history-toggle.hidden {
-            opacity: 0;
-            pointer-events: none;
-            transform: translate(100%, -50%);
-        }
-
-        .switch-history-toggle span {
-            display: block;
-            transform: rotate(180deg);
-        }
-
-        .switch-history-panel {
-            position: fixed;
-            top: 0;
-            right: 0;
-            z-index: 119;
-            width: 420px;
-            max-width: calc(100vw - 28px);
-            height: 100vh;
-            padding: 18px;
-            box-sizing: border-box;
-            background: rgba(255, 255, 255, 0.98);
-            border-left: 3px solid #2f6fed;
-            box-shadow: -8px 0 24px rgba(0, 0, 0, 0.28);
-            transform: translateX(100%);
-            transition: transform 0.25s ease;
-            overflow-y: auto;
-        }
-
-        .switch-history-panel.open {
-            transform: translateX(0);
-        }
-
-        .switch-history-close {
-            position: fixed;
-            top: 50%;
-            right: 398px;
-            transform: translateY(-50%);
-            z-index: 121;
-            width: 46px;
-            height: 46px;
-            padding: 0;
-            border: none;
-            border-radius: 50%;
-            background: #2f6fed;
-            color: #fff;
-            font-size: 30px;
-            font-weight: 800;
-            line-height: 46px;
-            text-align: center;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
-            cursor: pointer;
-        }
-
-        .switch-history-panel h2 {
-            margin: 0 0 12px;
-            color: #173b8f;
-            font-size: 22px;
-            text-align: left;
-        }
-
-        .switch-history-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        .switch-history-controls button,
-        .switch-history-controls input {
-            width: 100%;
-            height: 38px;
-            box-sizing: border-box;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        .switch-history-controls button {
-            padding: 8px;
-            background: #2f6fed;
-            color: white;
-            border: none;
-            font-weight: 700;
-        }
-
-        .switch-history-controls input {
-            padding: 7px 9px;
-            border: 1px solid #b8c8f5;
-            background: #fff;
-            color: #173b8f;
-        }
-
-        .switch-history-full-button {
-            grid-column: 1 / -1;
-            background: #173b8f !important;
-        }
-
-        .switch-history-note {
-            margin: 0 0 12px;
-            padding: 9px 10px;
-            border-radius: 9px;
-            background: #f3f7ff;
-            color: #4d5f88;
-            font-size: 13px;
-            text-align: left;
-            line-height: 1.35;
-        }
-
-        .switch-history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .switch-history-empty {
-            padding: 14px;
-            border-radius: 10px;
-            background: #f8faff;
-            border: 1px dashed #9ab5ef;
-            color: #52617d;
-            font-size: 14px;
-            text-align: left;
-            line-height: 1.4;
-        }
-
-        .switch-history-item {
-            padding: 12px;
-            border-radius: 12px;
-            background: #ffffff;
-            border: 1px solid #c8d8ff;
-            box-shadow: 0 3px 10px rgba(23, 59, 143, 0.12);
-            text-align: left;
-        }
-
-        .switch-history-time {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-            color: #173b8f;
-            font-weight: 800;
-            font-size: 16px;
-        }
-
-        .switch-history-date {
-            color: #6b7898;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .switch-history-row {
-            margin: 4px 0;
-            color: #26324f;
-            font-size: 13px;
-            line-height: 1.35;
-        }
-
-        .switch-history-row strong {
-            color: #173b8f;
-        }
-
-        .switch-history-counts {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5px;
-            margin-top: 8px;
-        }
-
-        .switch-history-counts span {
-            padding: 5px 7px;
-            border-radius: 7px;
-            background: #f3f7ff;
-            color: #26324f;
-            font-size: 12px;
-        }
-    `;
-
-    document.head.appendChild(style);
-}
-
-function openSwitchHistoryPanel() {
-    const panel = document.getElementById('switch-history-panel');
-    const toggle = document.getElementById('switch-history-toggle');
-
-    if (panel) panel.classList.add('open');
-    if (toggle) toggle.classList.add('hidden');
-}
-
-function closeSwitchHistoryPanel() {
-    const panel = document.getElementById('switch-history-panel');
-    const toggle = document.getElementById('switch-history-toggle');
-
-    if (panel) panel.classList.remove('open');
-    if (toggle) toggle.classList.remove('hidden');
-}
-
-function createSwitchHistoryPanel() {
-    if (document.getElementById('switch-history-panel')) return;
-
-    injectSwitchHistoryStyles();
-
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.id = 'switch-history-toggle';
-    toggle.className = 'switch-history-toggle';
-    toggle.innerHTML = '<span>‹ История</span>';
-
-    const panel = document.createElement('aside');
-    panel.id = 'switch-history-panel';
-    panel.className = 'switch-history-panel';
-    panel.innerHTML = `
-        <button type="button" id="switch-history-close" class="switch-history-close" aria-label="Закрыть историю">›</button>
-        <h2>История переключений</h2>
-        <div class="switch-history-controls">
-            <button type="button" id="switch-history-today">Сегодня</button>
-            <input type="date" id="switch-history-date" value="${selectedHistoryDate}">
-            <button type="button" id="switch-history-full" class="switch-history-full-button">Вся история переключений</button>
-        </div>
-        <p class="switch-history-note">
-            Пока база данных не подключена, история хранится только в рамках текущей симуляции и очищается при сбросе или новом запуске обработки.
-        </p>
-        <div id="switch-history-list" class="switch-history-list"></div>
-    `;
-
-    document.body.appendChild(panel);
-    document.body.appendChild(toggle);
-
-    toggle.addEventListener('click', openSwitchHistoryPanel);
-
-    const closeButton = document.getElementById('switch-history-close');
-    const todayButton = document.getElementById('switch-history-today');
-    const dateInput = document.getElementById('switch-history-date');
-    const fullHistoryButton = document.getElementById('switch-history-full');
-
-    if (closeButton) closeButton.addEventListener('click', closeSwitchHistoryPanel);
-
-    if (todayButton) {
-        todayButton.addEventListener('click', () => {
-            selectedHistoryDate = getTodayKey();
-            if (dateInput) dateInput.value = selectedHistoryDate;
-            renderSwitchHistory();
-        });
-    }
-
-    if (dateInput) {
-        dateInput.addEventListener('change', () => {
-            selectedHistoryDate = dateInput.value || getTodayKey();
-            renderSwitchHistory();
-        });
-    }
-
-    if (fullHistoryButton) {
-        fullHistoryButton.addEventListener('click', openFullSwitchHistoryWindow);
-    }
-
-    renderSwitchHistory();
-}
-
-function buildSwitchHistoryItemHtml(item) {
-    return `
-        <article class="switch-history-item">
-            <div class="switch-history-time">
-                <span>${escapeHtml(item.time)}</span>
-                <span class="switch-history-date">${escapeHtml(formatDateLabel(item.dateKey))}</span>
-            </div>
-            <div class="switch-history-row"><strong>Едут машины:</strong> ${escapeHtml(item.activeTransport)}</div>
-            <div class="switch-history-row"><strong>Стоят машины:</strong> ${escapeHtml(item.waitingTransport)}</div>
-            <div class="switch-history-row"><strong>Время:</strong> зелёный ${escapeHtml(item.green)} сек, красный ${escapeHtml(item.red)} сек</div>
-            <div class="switch-history-row"><strong>Пешеходы переходят:</strong> ${escapeHtml(item.activePedestrians)}</div>
-            <div class="switch-history-row"><strong>Пешеходы ждут:</strong> ${escapeHtml(item.waitingPedestrians)}</div>
-            <div class="switch-history-counts">
-                <span>Верх: ${escapeHtml(item.counts.top)}</span>
-                <span>Низ: ${escapeHtml(item.counts.bottom)}</span>
-                <span>Лево: ${escapeHtml(item.counts.left)}</span>
-                <span>Право: ${escapeHtml(item.counts.right)}</span>
-            </div>
-        </article>
-    `;
-}
-
-function renderSwitchHistory() {
-    const list = document.getElementById('switch-history-list');
-    if (!list) return;
-
-    const records = switchHistory.filter(item => item.dateKey === selectedHistoryDate);
-
-    if (records.length === 0) {
-        const isToday = selectedHistoryDate === getTodayKey();
-        list.innerHTML = `
-            <div class="switch-history-empty">
-                ${isToday
-                    ? 'За выбранный день пока нет переключений. Запусти обработку, и новая фаза будет записываться сюда один раз при переключении.'
-                    : 'Для выбранной даты локальных записей нет. После подключения базы данных здесь можно будет смотреть историю за любой день.'}
-            </div>
-        `;
-        return;
-    }
-
-    list.innerHTML = records.map(buildSwitchHistoryItemHtml).join('');
-}
-
-function buildFullHistoryPageHtml(records) {
-    const historyJson = JSON.stringify(records).replaceAll('<', '\\u003c');
-
-    return `
-        <!DOCTYPE html>
-        <html lang="ru">
-        <head>
-            <meta charset="UTF-8">
-            <title>Вся история переключений</title>
-            <style>
-                body {
-                    margin: 0;
-                    padding: 28px;
-                    box-sizing: border-box;
-                    font-family: Arial, sans-serif;
-                    background: #eef3ff;
-                    color: #26324f;
-                }
-                .history-page {
-                    width: min(1180px, 100%);
-                    margin: 0 auto;
-                    padding: 24px;
-                    box-sizing: border-box;
-                    background: rgba(255, 255, 255, 0.97);
-                    border: 2px solid #2f6fed;
-                    border-radius: 18px;
-                    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.18);
-                }
-                h1 {
-                    margin: 0 0 8px;
-                    color: #173b8f;
-                    font-size: 28px;
-                }
-                .subtitle {
-                    margin: 0 0 18px;
-                    color: #5b6784;
-                    font-size: 14px;
-                }
-                .history-controls {
-                    display: grid;
-                    grid-template-columns: 150px 190px 220px;
-                    gap: 10px;
-                    margin-bottom: 18px;
-                    align-items: center;
-                }
-                .history-controls button,
-                .history-controls input {
-                    height: 40px;
-                    border-radius: 9px;
-                    font-size: 14px;
-                    box-sizing: border-box;
-                }
-                .history-controls button {
-                    border: none;
-                    color: white;
-                    background: #2f6fed;
-                    font-weight: 700;
-                    cursor: pointer;
-                }
-                .history-controls .secondary-button {
-                    background: #173b8f;
-                }
-                .history-controls input {
-                    border: 1px solid #b8c8f5;
-                    padding: 8px 10px;
-                    color: #173b8f;
-                }
-                .history-list {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-                    gap: 12px;
-                }
-                .switch-history-item {
-                    padding: 14px;
-                    border-radius: 14px;
-                    background: #ffffff;
-                    border: 1px solid #c8d8ff;
-                    box-shadow: 0 3px 10px rgba(23, 59, 143, 0.12);
-                    text-align: left;
-                }
-                .switch-history-time {
-                    display: flex;
-                    justify-content: space-between;
-                    gap: 8px;
-                    margin-bottom: 8px;
-                    color: #173b8f;
-                    font-weight: 800;
-                    font-size: 17px;
-                }
-                .switch-history-date {
-                    color: #6b7898;
-                    font-size: 12px;
-                    font-weight: 600;
-                }
-                .switch-history-row {
-                    margin: 5px 0;
-                    color: #26324f;
-                    font-size: 14px;
-                    line-height: 1.35;
-                }
-                .switch-history-row strong {
-                    color: #173b8f;
-                }
-                .switch-history-counts {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 6px;
-                    margin-top: 9px;
-                }
-                .switch-history-counts span {
-                    padding: 6px 8px;
-                    border-radius: 8px;
-                    background: #f3f7ff;
-                    color: #26324f;
-                    font-size: 13px;
-                }
-                .empty {
-                    padding: 18px;
-                    border-radius: 12px;
-                    background: #f8faff;
-                    border: 1px dashed #9ab5ef;
-                    color: #52617d;
-                    line-height: 1.45;
-                }
-                @media (max-width: 720px) {
-                    body { padding: 14px; }
-                    .history-page { padding: 16px; }
-                    .history-controls { grid-template-columns: 1fr; }
-                }
-            </style>
-        </head>
-        <body>
-            <main class="history-page">
-                <h1>Вся история переключений</h1>
-                <p class="subtitle">Пока база данных не подключена, здесь отображается локальная история текущей симуляции. После подключения базы этот экран будет показывать записи за выбранный день из базы данных.</p>
-                <div class="history-controls">
-                    <button type="button" id="history-today">Сегодня</button>
-                    <input type="date" id="history-date" value="${getTodayKey()}">
-                    <button type="button" id="history-all" class="secondary-button">Показать все локальные записи</button>
-                </div>
-                <section id="history-list" class="history-list"></section>
-            </main>
-            <script>
-                const historyData = ${historyJson};
-                let selectedDate = '${getTodayKey()}';
-
-                function escapeHtml(value) {
-                    return String(value)
-                        .replaceAll('&', '&amp;')
-                        .replaceAll('<', '&lt;')
-                        .replaceAll('>', '&gt;')
-                        .replaceAll('"', '&quot;')
-                        .replaceAll("'", '&#039;');
-                }
-
-                function formatDateLabel(dateKey) {
-                    if (!dateKey || !dateKey.includes('-')) return dateKey || '';
-                    const parts = dateKey.split('-');
-                    return parts[2] + '.' + parts[1] + '.' + parts[0];
-                }
-
-                function getTodayKey() {
-                    const now = new Date();
-                    const pad = value => String(value).padStart(2, '0');
-                    return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
-                }
-
-                function buildItem(item) {
-                    return '<article class="switch-history-item">'
-                        + '<div class="switch-history-time"><span>' + escapeHtml(item.time) + '</span><span class="switch-history-date">' + escapeHtml(formatDateLabel(item.dateKey)) + '</span></div>'
-                        + '<div class="switch-history-row"><strong>Едут машины:</strong> ' + escapeHtml(item.activeTransport) + '</div>'
-                        + '<div class="switch-history-row"><strong>Стоят машины:</strong> ' + escapeHtml(item.waitingTransport) + '</div>'
-                        + '<div class="switch-history-row"><strong>Время:</strong> зелёный ' + escapeHtml(item.green) + ' сек, красный ' + escapeHtml(item.red) + ' сек</div>'
-                        + '<div class="switch-history-row"><strong>Пешеходы переходят:</strong> ' + escapeHtml(item.activePedestrians) + '</div>'
-                        + '<div class="switch-history-row"><strong>Пешеходы ждут:</strong> ' + escapeHtml(item.waitingPedestrians) + '</div>'
-                        + '<div class="switch-history-counts">'
-                        + '<span>Верх: ' + escapeHtml(item.counts.top) + '</span>'
-                        + '<span>Низ: ' + escapeHtml(item.counts.bottom) + '</span>'
-                        + '<span>Лево: ' + escapeHtml(item.counts.left) + '</span>'
-                        + '<span>Право: ' + escapeHtml(item.counts.right) + '</span>'
-                        + '</div></article>';
-                }
-
-                function renderHistory(records) {
-                    const list = document.getElementById('history-list');
-                    if (!list) return;
-
-                    if (records.length === 0) {
-                        list.innerHTML = '<div class="empty">Для выбранной даты локальных записей нет. После подключения базы данных здесь будут отображаться сохранённые переключения за выбранный день.</div>';
-                        return;
-                    }
-
-                    list.innerHTML = records.map(buildItem).join('');
-                }
-
-                function renderSelectedDate() {
-                    renderHistory(historyData.filter(item => item.dateKey === selectedDate));
-                }
-
-                document.getElementById('history-today').addEventListener('click', () => {
-                    selectedDate = getTodayKey();
-                    document.getElementById('history-date').value = selectedDate;
-                    renderSelectedDate();
-                });
-
-                document.getElementById('history-date').addEventListener('change', event => {
-                    selectedDate = event.target.value || getTodayKey();
-                    renderSelectedDate();
-                });
-
-                document.getElementById('history-all').addEventListener('click', () => {
-                    renderHistory([...historyData].sort((a, b) => {
-                        if (a.dateKey === b.dateKey) return b.time.localeCompare(a.time);
-                        return b.dateKey.localeCompare(a.dateKey);
-                    }));
-                });
-
-                renderSelectedDate();
-            </script>
-        </body>
-        </html>
-    `;
-}
-
-function openFullSwitchHistoryWindow() {
-    const historyWindow = window.open('', '_blank');
-    if (!historyWindow) return;
-
-    historyWindow.document.open();
-    historyWindow.document.write(buildFullHistoryPageHtml(switchHistory));
-    historyWindow.document.close();
-}
-
-function clearSwitchHistory() {
-    switchHistory = [];
-    selectedHistoryDate = getTodayKey();
-
-    const dateInput = document.getElementById('switch-history-date');
-    if (dateInput) dateInput.value = selectedHistoryDate;
-
-    renderSwitchHistory();
-}
-
-function addSwitchHistoryRecord(plan, data) {
-    if (!plan || !data || !data.processing_started) return;
-
-    const now = new Date();
-    const phase = plan.phase;
-    const waitingPhase = phases[phase].opposite;
-
-    const record = {
-        id: `${now.getTime()}-${switchHistory.length}`,
-        dateKey: getTodayKey(),
-        time: getClockTime(now),
-        activeTransport: phases[phase].label,
-        waitingTransport: phases[waitingPhase].label,
-        green: plan.green,
-        red: plan.red,
-        activePedestrians: pedestrianLabelForPhase(phase),
-        waitingPedestrians: pedestrianLabelForPhase(waitingPhase),
-        counts: {
-            top: num(data.top),
-            bottom: num(data.bottom),
-            left: num(data.left),
-            right: num(data.right)
-        }
-    };
-
-    switchHistory.unshift(record);
-    if (switchHistory.length > MAX_SWITCH_HISTORY_ITEMS) {
-        switchHistory = switchHistory.slice(0, MAX_SWITCH_HISTORY_ITEMS);
-    }
-
-    renderSwitchHistory();
-}
-
 function clearPedestrian(signal) {
     signal.classList.remove('ped-green', 'ped-red', 'ped-off');
 }
@@ -824,9 +139,7 @@ function setPedestrianSignal(direction, state, seconds, visible = true) {
         signal.classList.add(state === 'green' ? 'ped-green' : 'ped-red');
     }
 
-    if (timer) {
-        timer.textContent = Math.max(0, Math.ceil(seconds));
-    }
+    if (timer) timer.textContent = Math.max(0, Math.ceil(seconds));
 }
 
 function setPedestrianGroup(phase, state, seconds, visible = true) {
@@ -837,9 +150,7 @@ function setPedestrianGroup(phase, state, seconds, visible = true) {
 
 function setAdaptiveCardState(elementId, state) {
     const element = document.getElementById(elementId);
-    if (!element) return;
-
-    const card = element.closest('.adaptive-card');
+    const card = element?.closest('.adaptive-card');
     if (!card) return;
 
     card.classList.remove('adaptive-card-green', 'adaptive-card-red');
@@ -847,7 +158,7 @@ function setAdaptiveCardState(elementId, state) {
 }
 
 function setPedestrianInfo(phase, state, seconds) {
-    const id = phase === 'NS' ? 'ped-left-right-info' : 'ped-up-down-info';
+    const id = pedestrianInfoIds[phase];
     const label = state === 'green' ? 'Зелёный: ' : 'Красный: ';
 
     text(id, label + sec(seconds));
@@ -859,32 +170,6 @@ function setAllPedestriansToRed() {
     setPedestrianGroup('EW', 'red', 0);
     setPedestrianInfo('NS', 'red', 0);
     setPedestrianInfo('EW', 'red', 0);
-}
-
-function resetLocalState() {
-    latestData = null;
-    nextPhaseForPanel = null;
-    preparedNextPlan = null;
-    nextPlanLocked = false;
-    document.body.dataset.processed = 'false';
-    setGroup('horizontal', 'red');
-    setGroup('vertical', 'red');
-    setGroupTimers('horizontal', 0, 'red');
-    setGroupTimers('vertical', 0, 'red');
-    waitingPanel();
-    clearSwitchHistory();
-
-    document.querySelectorAll('input[type="file"]').forEach(input => {
-        input.value = '';
-    });
-
-    document.querySelectorAll('.stream-frame').forEach(frame => {
-        const placeholder = document.createElement('div');
-        placeholder.id = frame.id;
-        placeholder.className = 'empty-preview';
-        placeholder.textContent = 'Видео не выбрано';
-        frame.replaceWith(placeholder);
-    });
 }
 
 function waitingPanel() {
@@ -901,6 +186,32 @@ function waitingPanel() {
     text('up-down-priority', '0.00');
     text('left-right-priority', '0.00');
     setAllPedestriansToRed();
+}
+
+function resetLocalState() {
+    latestData = null;
+    nextPhaseForPanel = null;
+    preparedNextPlan = null;
+    nextPlanLocked = false;
+    document.body.dataset.processed = 'false';
+    setGroup('horizontal', 'red');
+    setGroup('vertical', 'red');
+    setGroupTimers('horizontal', 0, 'red');
+    setGroupTimers('vertical', 0, 'red');
+    waitingPanel();
+    window.SwitchHistory?.clear?.();
+
+    document.querySelectorAll('input[type="file"]').forEach(input => {
+        input.value = '';
+    });
+
+    document.querySelectorAll('.stream-frame').forEach(frame => {
+        const placeholder = document.createElement('div');
+        placeholder.id = frame.id;
+        placeholder.className = 'empty-preview';
+        placeholder.textContent = 'Видео не выбрано';
+        frame.replaceWith(placeholder);
+    });
 }
 
 function updateNextPanel(data) {
@@ -952,6 +263,7 @@ async function resetSimulation() {
 function clearLight(dir) {
     const light = document.querySelector('.traffic-light[data-dir="' + dir + '"]');
     if (!light) return;
+
     light.querySelector('.red').classList.remove('active');
     light.querySelector('.yellow').classList.remove('active');
     light.querySelector('.green').classList.remove('active');
@@ -960,6 +272,7 @@ function clearLight(dir) {
 function setLight(dir, state) {
     const light = document.querySelector('.traffic-light[data-dir="' + dir + '"]');
     if (!light) return;
+
     clearLight(dir);
     if (state === 'red') light.querySelector('.red').classList.add('active');
     if (state === 'yellow') light.querySelector('.yellow').classList.add('active');
@@ -970,20 +283,31 @@ function setLight(dir, state) {
     }
 }
 
-function setGroup(group, state) { groups[group].forEach(dir => setLight(dir, state)); }
+function setGroup(group, state) {
+    groups[group].forEach(dir => setLight(dir, state));
+}
+
 function setTimer(dir, seconds, state) {
     const timer = document.querySelector('.traffic-light[data-dir="' + dir + '"] .light-timer');
     if (!timer) return;
+
     timer.textContent = Math.max(0, Math.ceil(seconds));
     timer.classList.remove('timer-red', 'timer-yellow', 'timer-green');
     if (state === 'green' || state === 'blink-green') timer.classList.add('timer-green');
     else if (state === 'yellow' || state === 'red-yellow') timer.classList.add('timer-yellow');
     else timer.classList.add('timer-red');
 }
-function setGroupTimers(group, seconds, state) { groups[group].forEach(dir => setTimer(dir, seconds, state)); }
+
+function setGroupTimers(group, seconds, state) {
+    groups[group].forEach(dir => setTimer(dir, seconds, state));
+}
+
 function applyGroup(group, state, visible = true) {
-    if (state === 'blink-green') groups[group].forEach(dir => setLight(dir, visible ? 'green' : 'off'));
-    else setGroup(group, state);
+    if (state === 'blink-green') {
+        groups[group].forEach(dir => setLight(dir, visible ? 'green' : 'off'));
+    } else {
+        setGroup(group, state);
+    }
 }
 
 function getWaitingDisplayState(waitingState, waitingLeft) {
@@ -1009,18 +333,14 @@ function updateCurrentPanel(activePhase, activeState, activeLeft, waitingPhase, 
     text('current-red-time', sec(waitingLeft));
 }
 
-function getActivePedestrianRedSeconds(activeState, activeLeft, fixedRedLeft = null) {
-    if (fixedRedLeft !== null) {
-        return fixedRedLeft;
-    }
-
-    return activeLeft;
+function getActivePedestrianRedSeconds(activeLeft, fixedRedLeft = null) {
+    return fixedRedLeft !== null ? fixedRedLeft : activeLeft;
 }
 
 function updatePedestrianSignals(activePhase, activeState, activeLeft, waitingPhase, waitingLeft, visible, fixedActivePedestrianRedLeft = null) {
     const pedGreenLeft = Math.max(0, activeLeft - PEDESTRIAN_OFFSET_SECONDS);
     const activePedState = pedGreenLeft > 0 && (activeState === 'green' || activeState === 'blink-green') ? 'green' : 'red';
-    const activePedSeconds = activePedState === 'green' ? pedGreenLeft : getActivePedestrianRedSeconds(activeState, activeLeft, fixedActivePedestrianRedLeft);
+    const activePedSeconds = activePedState === 'green' ? pedGreenLeft : getActivePedestrianRedSeconds(activeLeft, fixedActivePedestrianRedLeft);
     const activePedVisible = activePedState === 'green' && Math.ceil(pedGreenLeft) <= PEDESTRIAN_BLINK_SECONDS ? visible : true;
 
     setPedestrianGroup(activePhase, activePedState, activePedSeconds, activePedVisible);
@@ -1097,6 +417,28 @@ async function sendTimerLog() {
     }
 }
 
+function addSwitchHistoryRecord(plan, data) {
+    if (!window.SwitchHistory || !plan || !data || !data.processing_started) return;
+
+    const phase = plan.phase;
+    const waitingPhase = phases[phase].opposite;
+
+    window.SwitchHistory.addRecord({
+        activeTransport: phases[phase].label,
+        waitingTransport: phases[waitingPhase].label,
+        green: plan.green,
+        red: plan.red,
+        activePedestrians: pedestrianLabelForPhase(phase),
+        waitingPedestrians: pedestrianLabelForPhase(waitingPhase),
+        counts: {
+            top: num(data.top),
+            bottom: num(data.bottom),
+            left: num(data.left),
+            right: num(data.right)
+        }
+    });
+}
+
 async function segment(activePhase, activeState, waitingPhase, waitingState, duration, activeStart, waitingStart, options = {}) {
     const activeGroup = phases[activePhase].group;
     const waitingGroup = phases[waitingPhase].group;
@@ -1110,10 +452,12 @@ async function segment(activePhase, activeState, waitingPhase, waitingState, dur
         const now = performance.now();
         const elapsed = now - start;
         if (elapsed >= duration * 1000) break;
+
         if ((activeState === 'blink-green' || activeState === 'green') && now - lastBlink >= 500) {
             visible = !visible;
             lastBlink = now;
         }
+
         const elapsedSeconds = elapsed / 1000;
         const activeLeft = Math.max(0.1, activeStart - elapsedSeconds);
         const waitingLeft = Math.max(0.1, waitingStart - elapsedSeconds);
@@ -1143,7 +487,11 @@ async function runPhase(plan) {
 
     const steadyGreen = Math.max(0, green - GREEN_BLINK_SECONDS);
     const redTotal = plan.red;
-    if (steadyGreen > 0) await segment(phase, 'green', waitingPhase, 'red', steadyGreen, green, redTotal);
+
+    if (steadyGreen > 0) {
+        await segment(phase, 'green', waitingPhase, 'red', steadyGreen, green, redTotal);
+    }
+
     await segment(phase, 'blink-green', waitingPhase, 'red', Math.min(GREEN_BLINK_SECONDS, green), Math.min(GREEN_BLINK_SECONDS, green), redTotal - steadyGreen);
 
     const frozenNextPlan = prepareNextPlan(latestData, waitingPhase, true) || preparedNextPlan || makePlan(latestData, waitingPhase);
@@ -1192,7 +540,7 @@ async function trafficLoop() {
 
         if (!nextPhase) nextPhase = firstPhase(data);
 
-        let currentPlan = preparedNextPlan && preparedNextPlan.phase === nextPhase
+        const currentPlan = preparedNextPlan && preparedNextPlan.phase === nextPhase
             ? preparedNextPlan
             : makePlan(data, nextPhase);
 
@@ -1200,10 +548,6 @@ async function trafficLoop() {
         nextPhase = phases[currentPlan.phase].opposite;
     }
 }
-
-setupMainLayout();
-updateStaticStreetLabels();
-createSwitchHistoryPanel();
 
 const resetButton = document.getElementById('reset-button');
 if (resetButton) {
