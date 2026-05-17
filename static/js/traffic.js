@@ -4,6 +4,7 @@ const RED_YELLOW_SECONDS = 0;
 const DEFAULT_GREEN_SECONDS = 10;
 const PEDESTRIAN_OFFSET_SECONDS = 0;
 const PEDESTRIAN_BLINK_SECONDS = 3;
+const MAX_SWITCH_HISTORY_ITEMS = 100;
 
 const processingStarted = document.body.dataset.processed === 'true' || document.querySelector('.stream-frame') !== null;
 
@@ -27,6 +28,8 @@ let latestData = null;
 let nextPhaseForPanel = null;
 let preparedNextPlan = null;
 let nextPlanLocked = false;
+let switchHistory = [];
+let selectedHistoryDate = getTodayKey();
 
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function num(value, fallback = 0) {
@@ -39,6 +42,19 @@ function text(id, value) {
     if (el) el.textContent = value;
 }
 function sec(value) { return Math.max(0, Math.ceil(value)) + ' сек'; }
+function pad(value) { return String(value).padStart(2, '0'); }
+function getTodayKey() {
+    const now = new Date();
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+function getClockTime(date) {
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+function formatDateLabel(dateKey) {
+    if (!dateKey || !dateKey.includes('-')) return dateKey || '';
+    const [year, month, day] = dateKey.split('-');
+    return `${day}.${month}.${year}`;
+}
 
 function queue(data, phase) {
     if (!data) return 0;
@@ -61,6 +77,10 @@ function redTimeFor(green, yellow) {
 
 function pedestrianGreenFor(carGreen) {
     return Math.max(0, carGreen - PEDESTRIAN_OFFSET_SECONDS);
+}
+
+function pedestrianLabelForPhase(phase) {
+    return phase === 'NS' ? 'лево/право' : 'верх/низ';
 }
 
 function firstPhase(data) {
@@ -97,6 +117,317 @@ function prepareNextPlan(data, phase, force = false) {
     preparedNextPlan = makePlan(data, phase);
     showNextPlan(preparedNextPlan);
     return preparedNextPlan;
+}
+
+function injectSwitchHistoryStyles() {
+    if (document.getElementById('switch-history-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'switch-history-styles';
+    style.textContent = `
+        .switch-history-toggle {
+            position: fixed;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            z-index: 120;
+            width: 42px;
+            min-height: 132px;
+            padding: 10px 6px;
+            border: none;
+            border-radius: 12px 0 0 12px;
+            background: #2f6fed;
+            color: #fff;
+            font-weight: 700;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+        }
+
+        .switch-history-toggle span {
+            display: block;
+            transform: rotate(180deg);
+        }
+
+        .switch-history-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            z-index: 119;
+            width: 390px;
+            max-width: calc(100vw - 54px);
+            height: 100vh;
+            padding: 18px;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.98);
+            border-left: 3px solid #2f6fed;
+            box-shadow: -8px 0 24px rgba(0, 0, 0, 0.28);
+            transform: translateX(100%);
+            transition: transform 0.25s ease;
+            overflow-y: auto;
+        }
+
+        .switch-history-panel.open {
+            transform: translateX(0);
+        }
+
+        .switch-history-panel h2 {
+            margin: 0 0 12px;
+            color: #173b8f;
+            font-size: 22px;
+            text-align: left;
+        }
+
+        .switch-history-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .switch-history-controls button,
+        .switch-history-controls input {
+            width: 100%;
+            height: 38px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .switch-history-controls button {
+            padding: 8px;
+            background: #2f6fed;
+            color: white;
+            border: none;
+            font-weight: 700;
+        }
+
+        .switch-history-controls input {
+            padding: 7px 9px;
+            border: 1px solid #b8c8f5;
+            background: #fff;
+            color: #173b8f;
+        }
+
+        .switch-history-note {
+            margin: 0 0 12px;
+            padding: 9px 10px;
+            border-radius: 9px;
+            background: #f3f7ff;
+            color: #4d5f88;
+            font-size: 13px;
+            text-align: left;
+            line-height: 1.35;
+        }
+
+        .switch-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .switch-history-empty {
+            padding: 14px;
+            border-radius: 10px;
+            background: #f8faff;
+            border: 1px dashed #9ab5ef;
+            color: #52617d;
+            font-size: 14px;
+            text-align: left;
+            line-height: 1.4;
+        }
+
+        .switch-history-item {
+            padding: 12px;
+            border-radius: 12px;
+            background: #ffffff;
+            border: 1px solid #c8d8ff;
+            box-shadow: 0 3px 10px rgba(23, 59, 143, 0.12);
+            text-align: left;
+        }
+
+        .switch-history-time {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            color: #173b8f;
+            font-weight: 800;
+            font-size: 16px;
+        }
+
+        .switch-history-date {
+            color: #6b7898;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .switch-history-row {
+            margin: 4px 0;
+            color: #26324f;
+            font-size: 13px;
+            line-height: 1.35;
+        }
+
+        .switch-history-row strong {
+            color: #173b8f;
+        }
+
+        .switch-history-counts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .switch-history-counts span {
+            padding: 5px 7px;
+            border-radius: 7px;
+            background: #f3f7ff;
+            color: #26324f;
+            font-size: 12px;
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
+function createSwitchHistoryPanel() {
+    if (document.getElementById('switch-history-panel')) return;
+
+    injectSwitchHistoryStyles();
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.id = 'switch-history-toggle';
+    toggle.className = 'switch-history-toggle';
+    toggle.innerHTML = '<span>‹ История</span>';
+
+    const panel = document.createElement('aside');
+    panel.id = 'switch-history-panel';
+    panel.className = 'switch-history-panel';
+    panel.innerHTML = `
+        <h2>История переключений</h2>
+        <div class="switch-history-controls">
+            <button type="button" id="switch-history-today">Сегодня</button>
+            <input type="date" id="switch-history-date" value="${selectedHistoryDate}">
+        </div>
+        <p class="switch-history-note">
+            Пока база данных не подключена, история хранится только в рамках текущей симуляции и очищается при сбросе или новом запуске обработки.
+        </p>
+        <div id="switch-history-list" class="switch-history-list"></div>
+    `;
+
+    document.body.appendChild(panel);
+    document.body.appendChild(toggle);
+
+    toggle.addEventListener('click', () => {
+        panel.classList.toggle('open');
+    });
+
+    const todayButton = document.getElementById('switch-history-today');
+    const dateInput = document.getElementById('switch-history-date');
+
+    if (todayButton) {
+        todayButton.addEventListener('click', () => {
+            selectedHistoryDate = getTodayKey();
+            if (dateInput) dateInput.value = selectedHistoryDate;
+            renderSwitchHistory();
+        });
+    }
+
+    if (dateInput) {
+        dateInput.addEventListener('change', () => {
+            selectedHistoryDate = dateInput.value || getTodayKey();
+            renderSwitchHistory();
+        });
+    }
+
+    renderSwitchHistory();
+}
+
+function renderSwitchHistory() {
+    const list = document.getElementById('switch-history-list');
+    if (!list) return;
+
+    const records = switchHistory.filter(item => item.dateKey === selectedHistoryDate);
+
+    if (records.length === 0) {
+        const isToday = selectedHistoryDate === getTodayKey();
+        list.innerHTML = `
+            <div class="switch-history-empty">
+                ${isToday
+                    ? 'За выбранный день пока нет переключений. Запусти обработку, и новая фаза будет записываться сюда один раз при переключении.'
+                    : 'Для выбранной даты локальных записей нет. После подключения базы данных здесь можно будет смотреть историю за любой день.'}
+            </div>
+        `;
+        return;
+    }
+
+    list.innerHTML = records.map(item => `
+        <article class="switch-history-item">
+            <div class="switch-history-time">
+                <span>${item.time}</span>
+                <span class="switch-history-date">${formatDateLabel(item.dateKey)}</span>
+            </div>
+            <div class="switch-history-row"><strong>Едут машины:</strong> ${item.activeTransport}</div>
+            <div class="switch-history-row"><strong>Стоят машины:</strong> ${item.waitingTransport}</div>
+            <div class="switch-history-row"><strong>Время:</strong> зелёный ${item.green} сек, красный ${item.red} сек</div>
+            <div class="switch-history-row"><strong>Идут пешеходы:</strong> ${item.activePedestrians}</div>
+            <div class="switch-history-row"><strong>Стоят пешеходы:</strong> ${item.waitingPedestrians}</div>
+            <div class="switch-history-counts">
+                <span>Верх: ${item.counts.top}</span>
+                <span>Низ: ${item.counts.bottom}</span>
+                <span>Лево: ${item.counts.left}</span>
+                <span>Право: ${item.counts.right}</span>
+            </div>
+        </article>
+    `).join('');
+}
+
+function clearSwitchHistory() {
+    switchHistory = [];
+    selectedHistoryDate = getTodayKey();
+
+    const dateInput = document.getElementById('switch-history-date');
+    if (dateInput) dateInput.value = selectedHistoryDate;
+
+    renderSwitchHistory();
+}
+
+function addSwitchHistoryRecord(plan, data) {
+    if (!plan || !data || !data.processing_started) return;
+
+    const now = new Date();
+    const phase = plan.phase;
+    const waitingPhase = phases[phase].opposite;
+
+    const record = {
+        id: `${now.getTime()}-${switchHistory.length}`,
+        dateKey: getTodayKey(),
+        time: getClockTime(now),
+        activeTransport: phases[phase].label,
+        waitingTransport: phases[waitingPhase].label,
+        green: plan.green,
+        red: plan.red,
+        activePedestrians: pedestrianLabelForPhase(phase),
+        waitingPedestrians: pedestrianLabelForPhase(waitingPhase),
+        counts: {
+            top: num(data.top),
+            bottom: num(data.bottom),
+            left: num(data.left),
+            right: num(data.right)
+        }
+    };
+
+    switchHistory.unshift(record);
+    if (switchHistory.length > MAX_SWITCH_HISTORY_ITEMS) {
+        switchHistory = switchHistory.slice(0, MAX_SWITCH_HISTORY_ITEMS);
+    }
+
+    renderSwitchHistory();
 }
 
 function clearPedestrian(signal) {
@@ -164,6 +495,7 @@ function resetLocalState() {
     setGroupTimers('horizontal', 0, 'red');
     setGroupTimers('vertical', 0, 'red');
     waitingPanel();
+    clearSwitchHistory();
 
     document.querySelectorAll('input[type="file"]').forEach(input => {
         input.value = '';
@@ -430,6 +762,7 @@ async function runPhase(plan) {
     const waitingPhase = phases[phase].opposite;
     nextPhaseForPanel = waitingPhase;
     prepareNextPlan(latestData, waitingPhase);
+    addSwitchHistoryRecord(plan, latestData);
 
     const steadyGreen = Math.max(0, green - GREEN_BLINK_SECONDS);
     const redTotal = plan.red;
@@ -490,6 +823,8 @@ async function trafficLoop() {
         nextPhase = phases[currentPlan.phase].opposite;
     }
 }
+
+createSwitchHistoryPanel();
 
 const resetButton = document.getElementById('reset-button');
 if (resetButton) {
