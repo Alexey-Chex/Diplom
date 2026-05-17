@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Вся история переключений</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/history.css') }}">
+</head>
+<body class="history-page-body" data-history-page="true">
+    <main class="history-page">
+        <h1>Вся история переключений</h1>
+        <p class="history-subtitle">
+            Пока база данных не подключена, здесь отображается локальная история текущей симуляции.
+            После подключения базы данных эта страница будет показывать сохранённые переключения за выбранный день.
+        </p>
+
+        <div class="history-page-controls">
+            <button type="button" id="history-today">Сегодня</button>
+            <input type="date" id="history-date">
+            <button type="button" id="history-all" class="secondary-button">Показать все локальные записи</button>
+        </div>
+
+        <section id="history-list" class="history-page-list"></section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/history.js') }}"></script>
+</body>
+</html>
