@@ -188,10 +188,12 @@ def index():
 
     message = None
     processed = processing_started
+    clear_history = False
 
     if request.method == 'POST':
         processing_started = True
         processed = True
+        clear_history = True
         clear_timer_log()
 
         for direction in DIRECTIONS:
@@ -211,8 +213,14 @@ def index():
         'index.html',
         processed=processed,
         message=message,
-        available_streams=available_streams
+        available_streams=available_streams,
+        clear_history=clear_history
     )
+
+
+@app.route('/history')
+def history_page():
+    return render_template('history.html')
 
 
 @app.route('/video_feed/<direction>')
