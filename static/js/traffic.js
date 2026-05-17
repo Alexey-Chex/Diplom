@@ -13,9 +13,14 @@ const groups = {
     vertical: ['top', 'bottom']
 };
 
+const streetLabels = {
+    NS: 'ул. Нагибина',
+    EW: 'ул. Ленина'
+};
+
 const phases = {
-    NS: { group: 'vertical', label: 'верх/низ', green: 'green_ns', opposite: 'EW' },
-    EW: { group: 'horizontal', label: 'лево/право', green: 'green_ew', opposite: 'NS' }
+    NS: { group: 'vertical', label: streetLabels.NS, green: 'green_ns', opposite: 'EW' },
+    EW: { group: 'horizontal', label: streetLabels.EW, green: 'green_ew', opposite: 'NS' }
 };
 
 const pedestrianGroups = {
@@ -88,7 +93,7 @@ function pedestrianGreenFor(carGreen) {
 }
 
 function pedestrianLabelForPhase(phase) {
-    return phase === 'NS' ? 'лево/право' : 'верх/низ';
+    return streetLabels[phases[phase].opposite];
 }
 
 function firstPhase(data) {
@@ -125,6 +130,76 @@ function prepareNextPlan(data, phase, force = false) {
     preparedNextPlan = makePlan(data, phase);
     showNextPlan(preparedNextPlan);
     return preparedNextPlan;
+}
+
+function setCardLabel(valueId, label) {
+    const value = document.getElementById(valueId);
+    const labelElement = value?.previousElementSibling;
+    if (labelElement) labelElement.textContent = label;
+}
+
+function updateStaticStreetLabels() {
+    setCardLabel('up-down-queue', 'Очередь ' + streetLabels.NS);
+    setCardLabel('left-right-queue', 'Очередь ' + streetLabels.EW);
+    setCardLabel('up-down-priority', 'Приоритет ' + streetLabels.NS);
+    setCardLabel('left-right-priority', 'Приоритет ' + streetLabels.EW);
+    setCardLabel('ped-left-right-info', 'Пешеходы ' + streetLabels.EW);
+    setCardLabel('ped-up-down-info', 'Пешеходы ' + streetLabels.NS);
+}
+
+function injectLayoutStyles() {
+    if (document.getElementById('layout-adjustments-styles')) return;
+
+    const style = document.createElement('style');
+    style.id = 'layout-adjustments-styles';
+    style.textContent = `
+        .left-workspace-panel {
+            width: 900px;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .left-workspace-panel .buttons {
+            width: 100%;
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .left-workspace-panel .buttons button {
+            width: 100%;
+            min-height: 92px;
+            padding: 14px 18px;
+            border-radius: 10px;
+            font-size: 18px;
+            line-height: 1.2;
+        }
+
+        .right-control-panel {
+            gap: 0;
+        }
+    `;
+
+    document.head.appendChild(style);
+}
+
+function setupMainLayout() {
+    injectLayoutStyles();
+
+    const workspace = document.querySelector('.workspace');
+    const intersection = document.querySelector('.intersection-container');
+    const buttons = document.querySelector('.right-control-panel .buttons');
+
+    if (!workspace || !intersection || !buttons || document.querySelector('.left-workspace-panel')) return;
+
+    const leftPanel = document.createElement('div');
+    leftPanel.className = 'left-workspace-panel';
+
+    workspace.insertBefore(leftPanel, intersection);
+    leftPanel.appendChild(intersection);
+    leftPanel.appendChild(buttons);
 }
 
 function injectSwitchHistoryStyles() {
@@ -423,8 +498,8 @@ function buildSwitchHistoryItemHtml(item) {
             <div class="switch-history-row"><strong>Едут машины:</strong> ${escapeHtml(item.activeTransport)}</div>
             <div class="switch-history-row"><strong>Стоят машины:</strong> ${escapeHtml(item.waitingTransport)}</div>
             <div class="switch-history-row"><strong>Время:</strong> зелёный ${escapeHtml(item.green)} сек, красный ${escapeHtml(item.red)} сек</div>
-            <div class="switch-history-row"><strong>Идут пешеходы:</strong> ${escapeHtml(item.activePedestrians)}</div>
-            <div class="switch-history-row"><strong>Стоят пешеходы:</strong> ${escapeHtml(item.waitingPedestrians)}</div>
+            <div class="switch-history-row"><strong>Пешеходы переходят:</strong> ${escapeHtml(item.activePedestrians)}</div>
+            <div class="switch-history-row"><strong>Пешеходы ждут:</strong> ${escapeHtml(item.waitingPedestrians)}</div>
             <div class="switch-history-counts">
                 <span>Верх: ${escapeHtml(item.counts.top)}</span>
                 <span>Низ: ${escapeHtml(item.counts.bottom)}</span>
@@ -456,13 +531,10 @@ function renderSwitchHistory() {
     list.innerHTML = records.map(buildSwitchHistoryItemHtml).join('');
 }
 
-function openFullSwitchHistoryWindow() {
-    const records = [...switchHistory].sort((a, b) => {
-        if (a.dateKey === b.dateKey) return b.time.localeCompare(a.time);
-        return b.dateKey.localeCompare(a.dateKey);
-    });
+function buildFullHistoryPageHtml(records) {
+    const historyJson = JSON.stringify(records).replaceAll('<', '\\u003c');
 
-    const html = `
+    return `
         <!DOCTYPE html>
         <html lang="ru">
         <head>
@@ -496,6 +568,35 @@ function openFullSwitchHistoryWindow() {
                     margin: 0 0 18px;
                     color: #5b6784;
                     font-size: 14px;
+                }
+                .history-controls {
+                    display: grid;
+                    grid-template-columns: 150px 190px 220px;
+                    gap: 10px;
+                    margin-bottom: 18px;
+                    align-items: center;
+                }
+                .history-controls button,
+                .history-controls input {
+                    height: 40px;
+                    border-radius: 9px;
+                    font-size: 14px;
+                    box-sizing: border-box;
+                }
+                .history-controls button {
+                    border: none;
+                    color: white;
+                    background: #2f6fed;
+                    font-weight: 700;
+                    cursor: pointer;
+                }
+                .history-controls .secondary-button {
+                    background: #173b8f;
+                }
+                .history-controls input {
+                    border: 1px solid #b8c8f5;
+                    padding: 8px 10px;
+                    color: #173b8f;
                 }
                 .history-list {
                     display: grid;
@@ -554,25 +655,112 @@ function openFullSwitchHistoryWindow() {
                     color: #52617d;
                     line-height: 1.45;
                 }
+                @media (max-width: 720px) {
+                    body { padding: 14px; }
+                    .history-page { padding: 16px; }
+                    .history-controls { grid-template-columns: 1fr; }
+                }
             </style>
         </head>
         <body>
             <main class="history-page">
                 <h1>Вся история переключений</h1>
-                <p class="subtitle">Пока база данных не подключена, здесь отображается локальная история текущей симуляции.</p>
-                ${records.length > 0
-                    ? `<section class="history-list">${records.map(buildSwitchHistoryItemHtml).join('')}</section>`
-                    : '<div class="empty">История пока пустая. Запусти обработку, и переключения фаз появятся здесь.</div>'}
+                <p class="subtitle">Пока база данных не подключена, здесь отображается локальная история текущей симуляции. После подключения базы этот экран будет показывать записи за выбранный день из базы данных.</p>
+                <div class="history-controls">
+                    <button type="button" id="history-today">Сегодня</button>
+                    <input type="date" id="history-date" value="${getTodayKey()}">
+                    <button type="button" id="history-all" class="secondary-button">Показать все локальные записи</button>
+                </div>
+                <section id="history-list" class="history-list"></section>
             </main>
+            <script>
+                const historyData = ${historyJson};
+                let selectedDate = '${getTodayKey()}';
+
+                function escapeHtml(value) {
+                    return String(value)
+                        .replaceAll('&', '&amp;')
+                        .replaceAll('<', '&lt;')
+                        .replaceAll('>', '&gt;')
+                        .replaceAll('"', '&quot;')
+                        .replaceAll("'", '&#039;');
+                }
+
+                function formatDateLabel(dateKey) {
+                    if (!dateKey || !dateKey.includes('-')) return dateKey || '';
+                    const parts = dateKey.split('-');
+                    return parts[2] + '.' + parts[1] + '.' + parts[0];
+                }
+
+                function getTodayKey() {
+                    const now = new Date();
+                    const pad = value => String(value).padStart(2, '0');
+                    return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+                }
+
+                function buildItem(item) {
+                    return '<article class="switch-history-item">'
+                        + '<div class="switch-history-time"><span>' + escapeHtml(item.time) + '</span><span class="switch-history-date">' + escapeHtml(formatDateLabel(item.dateKey)) + '</span></div>'
+                        + '<div class="switch-history-row"><strong>Едут машины:</strong> ' + escapeHtml(item.activeTransport) + '</div>'
+                        + '<div class="switch-history-row"><strong>Стоят машины:</strong> ' + escapeHtml(item.waitingTransport) + '</div>'
+                        + '<div class="switch-history-row"><strong>Время:</strong> зелёный ' + escapeHtml(item.green) + ' сек, красный ' + escapeHtml(item.red) + ' сек</div>'
+                        + '<div class="switch-history-row"><strong>Пешеходы переходят:</strong> ' + escapeHtml(item.activePedestrians) + '</div>'
+                        + '<div class="switch-history-row"><strong>Пешеходы ждут:</strong> ' + escapeHtml(item.waitingPedestrians) + '</div>'
+                        + '<div class="switch-history-counts">'
+                        + '<span>Верх: ' + escapeHtml(item.counts.top) + '</span>'
+                        + '<span>Низ: ' + escapeHtml(item.counts.bottom) + '</span>'
+                        + '<span>Лево: ' + escapeHtml(item.counts.left) + '</span>'
+                        + '<span>Право: ' + escapeHtml(item.counts.right) + '</span>'
+                        + '</div></article>';
+                }
+
+                function renderHistory(records) {
+                    const list = document.getElementById('history-list');
+                    if (!list) return;
+
+                    if (records.length === 0) {
+                        list.innerHTML = '<div class="empty">Для выбранной даты локальных записей нет. После подключения базы данных здесь будут отображаться сохранённые переключения за выбранный день.</div>';
+                        return;
+                    }
+
+                    list.innerHTML = records.map(buildItem).join('');
+                }
+
+                function renderSelectedDate() {
+                    renderHistory(historyData.filter(item => item.dateKey === selectedDate));
+                }
+
+                document.getElementById('history-today').addEventListener('click', () => {
+                    selectedDate = getTodayKey();
+                    document.getElementById('history-date').value = selectedDate;
+                    renderSelectedDate();
+                });
+
+                document.getElementById('history-date').addEventListener('change', event => {
+                    selectedDate = event.target.value || getTodayKey();
+                    renderSelectedDate();
+                });
+
+                document.getElementById('history-all').addEventListener('click', () => {
+                    renderHistory([...historyData].sort((a, b) => {
+                        if (a.dateKey === b.dateKey) return b.time.localeCompare(a.time);
+                        return b.dateKey.localeCompare(a.dateKey);
+                    }));
+                });
+
+                renderSelectedDate();
+            </script>
         </body>
         </html>
     `;
+}
 
+function openFullSwitchHistoryWindow() {
     const historyWindow = window.open('', '_blank');
     if (!historyWindow) return;
 
     historyWindow.document.open();
-    historyWindow.document.write(html);
+    historyWindow.document.write(buildFullHistoryPageHtml(switchHistory));
     historyWindow.document.close();
 }
 
@@ -1013,6 +1201,8 @@ async function trafficLoop() {
     }
 }
 
+setupMainLayout();
+updateStaticStreetLabels();
 createSwitchHistoryPanel();
 
 const resetButton = document.getElementById('reset-button');
