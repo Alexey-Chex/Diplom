@@ -55,6 +55,14 @@ function formatDateLabel(dateKey) {
     const [year, month, day] = dateKey.split('-');
     return `${day}.${month}.${year}`;
 }
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
 
 function queue(data, phase) {
     if (!data) return 0;
@@ -143,6 +151,13 @@ function injectSwitchHistoryStyles() {
             cursor: pointer;
             writing-mode: vertical-rl;
             text-orientation: mixed;
+            transition: transform 0.25s ease, opacity 0.2s ease;
+        }
+
+        .switch-history-toggle.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(100%, -50%);
         }
 
         .switch-history-toggle span {
@@ -155,8 +170,8 @@ function injectSwitchHistoryStyles() {
             top: 0;
             right: 0;
             z-index: 119;
-            width: 390px;
-            max-width: calc(100vw - 54px);
+            width: 420px;
+            max-width: calc(100vw - 28px);
             height: 100vh;
             padding: 18px;
             box-sizing: border-box;
@@ -170,6 +185,27 @@ function injectSwitchHistoryStyles() {
 
         .switch-history-panel.open {
             transform: translateX(0);
+        }
+
+        .switch-history-close {
+            position: fixed;
+            top: 50%;
+            right: 398px;
+            transform: translateY(-50%);
+            z-index: 121;
+            width: 46px;
+            height: 46px;
+            padding: 0;
+            border: none;
+            border-radius: 50%;
+            background: #2f6fed;
+            color: #fff;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 46px;
+            text-align: center;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
+            cursor: pointer;
         }
 
         .switch-history-panel h2 {
@@ -208,6 +244,11 @@ function injectSwitchHistoryStyles() {
             border: 1px solid #b8c8f5;
             background: #fff;
             color: #173b8f;
+        }
+
+        .switch-history-full-button {
+            grid-column: 1 / -1;
+            background: #173b8f !important;
         }
 
         .switch-history-note {
@@ -294,6 +335,22 @@ function injectSwitchHistoryStyles() {
     document.head.appendChild(style);
 }
 
+function openSwitchHistoryPanel() {
+    const panel = document.getElementById('switch-history-panel');
+    const toggle = document.getElementById('switch-history-toggle');
+
+    if (panel) panel.classList.add('open');
+    if (toggle) toggle.classList.add('hidden');
+}
+
+function closeSwitchHistoryPanel() {
+    const panel = document.getElementById('switch-history-panel');
+    const toggle = document.getElementById('switch-history-toggle');
+
+    if (panel) panel.classList.remove('open');
+    if (toggle) toggle.classList.remove('hidden');
+}
+
 function createSwitchHistoryPanel() {
     if (document.getElementById('switch-history-panel')) return;
 
@@ -309,10 +366,12 @@ function createSwitchHistoryPanel() {
     panel.id = 'switch-history-panel';
     panel.className = 'switch-history-panel';
     panel.innerHTML = `
+        <button type="button" id="switch-history-close" class="switch-history-close" aria-label="Закрыть историю">›</button>
         <h2>История переключений</h2>
         <div class="switch-history-controls">
             <button type="button" id="switch-history-today">Сегодня</button>
             <input type="date" id="switch-history-date" value="${selectedHistoryDate}">
+            <button type="button" id="switch-history-full" class="switch-history-full-button">Вся история переключений</button>
         </div>
         <p class="switch-history-note">
             Пока база данных не подключена, история хранится только в рамках текущей симуляции и очищается при сбросе или новом запуске обработки.
@@ -323,12 +382,14 @@ function createSwitchHistoryPanel() {
     document.body.appendChild(panel);
     document.body.appendChild(toggle);
 
-    toggle.addEventListener('click', () => {
-        panel.classList.toggle('open');
-    });
+    toggle.addEventListener('click', openSwitchHistoryPanel);
 
+    const closeButton = document.getElementById('switch-history-close');
     const todayButton = document.getElementById('switch-history-today');
     const dateInput = document.getElementById('switch-history-date');
+    const fullHistoryButton = document.getElementById('switch-history-full');
+
+    if (closeButton) closeButton.addEventListener('click', closeSwitchHistoryPanel);
 
     if (todayButton) {
         todayButton.addEventListener('click', () => {
@@ -345,7 +406,33 @@ function createSwitchHistoryPanel() {
         });
     }
 
+    if (fullHistoryButton) {
+        fullHistoryButton.addEventListener('click', openFullSwitchHistoryWindow);
+    }
+
     renderSwitchHistory();
+}
+
+function buildSwitchHistoryItemHtml(item) {
+    return `
+        <article class="switch-history-item">
+            <div class="switch-history-time">
+                <span>${escapeHtml(item.time)}</span>
+                <span class="switch-history-date">${escapeHtml(formatDateLabel(item.dateKey))}</span>
+            </div>
+            <div class="switch-history-row"><strong>Едут машины:</strong> ${escapeHtml(item.activeTransport)}</div>
+            <div class="switch-history-row"><strong>Стоят машины:</strong> ${escapeHtml(item.waitingTransport)}</div>
+            <div class="switch-history-row"><strong>Время:</strong> зелёный ${escapeHtml(item.green)} сек, красный ${escapeHtml(item.red)} сек</div>
+            <div class="switch-history-row"><strong>Идут пешеходы:</strong> ${escapeHtml(item.activePedestrians)}</div>
+            <div class="switch-history-row"><strong>Стоят пешеходы:</strong> ${escapeHtml(item.waitingPedestrians)}</div>
+            <div class="switch-history-counts">
+                <span>Верх: ${escapeHtml(item.counts.top)}</span>
+                <span>Низ: ${escapeHtml(item.counts.bottom)}</span>
+                <span>Лево: ${escapeHtml(item.counts.left)}</span>
+                <span>Право: ${escapeHtml(item.counts.right)}</span>
+            </div>
+        </article>
+    `;
 }
 
 function renderSwitchHistory() {
@@ -366,25 +453,127 @@ function renderSwitchHistory() {
         return;
     }
 
-    list.innerHTML = records.map(item => `
-        <article class="switch-history-item">
-            <div class="switch-history-time">
-                <span>${item.time}</span>
-                <span class="switch-history-date">${formatDateLabel(item.dateKey)}</span>
-            </div>
-            <div class="switch-history-row"><strong>Едут машины:</strong> ${item.activeTransport}</div>
-            <div class="switch-history-row"><strong>Стоят машины:</strong> ${item.waitingTransport}</div>
-            <div class="switch-history-row"><strong>Время:</strong> зелёный ${item.green} сек, красный ${item.red} сек</div>
-            <div class="switch-history-row"><strong>Идут пешеходы:</strong> ${item.activePedestrians}</div>
-            <div class="switch-history-row"><strong>Стоят пешеходы:</strong> ${item.waitingPedestrians}</div>
-            <div class="switch-history-counts">
-                <span>Верх: ${item.counts.top}</span>
-                <span>Низ: ${item.counts.bottom}</span>
-                <span>Лево: ${item.counts.left}</span>
-                <span>Право: ${item.counts.right}</span>
-            </div>
-        </article>
-    `).join('');
+    list.innerHTML = records.map(buildSwitchHistoryItemHtml).join('');
+}
+
+function openFullSwitchHistoryWindow() {
+    const records = [...switchHistory].sort((a, b) => {
+        if (a.dateKey === b.dateKey) return b.time.localeCompare(a.time);
+        return b.dateKey.localeCompare(a.dateKey);
+    });
+
+    const html = `
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+            <meta charset="UTF-8">
+            <title>Вся история переключений</title>
+            <style>
+                body {
+                    margin: 0;
+                    padding: 28px;
+                    box-sizing: border-box;
+                    font-family: Arial, sans-serif;
+                    background: #eef3ff;
+                    color: #26324f;
+                }
+                .history-page {
+                    width: min(1180px, 100%);
+                    margin: 0 auto;
+                    padding: 24px;
+                    box-sizing: border-box;
+                    background: rgba(255, 255, 255, 0.97);
+                    border: 2px solid #2f6fed;
+                    border-radius: 18px;
+                    box-shadow: 0 8px 26px rgba(0, 0, 0, 0.18);
+                }
+                h1 {
+                    margin: 0 0 8px;
+                    color: #173b8f;
+                    font-size: 28px;
+                }
+                .subtitle {
+                    margin: 0 0 18px;
+                    color: #5b6784;
+                    font-size: 14px;
+                }
+                .history-list {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+                    gap: 12px;
+                }
+                .switch-history-item {
+                    padding: 14px;
+                    border-radius: 14px;
+                    background: #ffffff;
+                    border: 1px solid #c8d8ff;
+                    box-shadow: 0 3px 10px rgba(23, 59, 143, 0.12);
+                    text-align: left;
+                }
+                .switch-history-time {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 8px;
+                    margin-bottom: 8px;
+                    color: #173b8f;
+                    font-weight: 800;
+                    font-size: 17px;
+                }
+                .switch-history-date {
+                    color: #6b7898;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                .switch-history-row {
+                    margin: 5px 0;
+                    color: #26324f;
+                    font-size: 14px;
+                    line-height: 1.35;
+                }
+                .switch-history-row strong {
+                    color: #173b8f;
+                }
+                .switch-history-counts {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 6px;
+                    margin-top: 9px;
+                }
+                .switch-history-counts span {
+                    padding: 6px 8px;
+                    border-radius: 8px;
+                    background: #f3f7ff;
+                    color: #26324f;
+                    font-size: 13px;
+                }
+                .empty {
+                    padding: 18px;
+                    border-radius: 12px;
+                    background: #f8faff;
+                    border: 1px dashed #9ab5ef;
+                    color: #52617d;
+                    line-height: 1.45;
+                }
+            </style>
+        </head>
+        <body>
+            <main class="history-page">
+                <h1>Вся история переключений</h1>
+                <p class="subtitle">Пока база данных не подключена, здесь отображается локальная история текущей симуляции.</p>
+                ${records.length > 0
+                    ? `<section class="history-list">${records.map(buildSwitchHistoryItemHtml).join('')}</section>`
+                    : '<div class="empty">История пока пустая. Запусти обработку, и переключения фаз появятся здесь.</div>'}
+            </main>
+        </body>
+        </html>
+    `;
+
+    const historyWindow = window.open('', '_blank');
+    if (!historyWindow) return;
+
+    historyWindow.document.open();
+    historyWindow.document.write(html);
+    historyWindow.document.close();
 }
 
 function clearSwitchHistory() {
