@@ -57,6 +57,13 @@ h1 {
     align-items: start;
 }
 
+.left-workspace-panel {
+    width: 900px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
 .intersection-container {
     position: relative;
     width: 900px;
@@ -143,19 +150,25 @@ h1 {
 .right-control-panel {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 0;
     min-width: 0;
 }
 
 .buttons {
-    margin-top: 0;
-    display: flex;
-    flex-direction: column;
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
+    width: 100%;
 }
 
 .buttons button {
     width: 100%;
+    min-height: 126px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-size: 24px;
+    line-height: 1.2;
 }
 
 button {
@@ -478,4 +491,15 @@ button:hover {
 .ped-right {
     top: 361px;
     right: 358px;
+}
+
+@media (max-width: 1250px) {
+    .workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .left-workspace-panel,
+    .intersection-container {
+        margin: 0 auto;
+    }
 }
