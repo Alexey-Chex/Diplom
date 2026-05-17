@@ -1,4 +1,4 @@
-const SwitchHistory = (() => {
+window.SwitchHistory = (() => {
     const STORAGE_KEY = 'adaptiveSwitchHistory';
     const MAX_ITEMS = 100;
 
@@ -249,4 +249,4 @@ const SwitchHistory = (() => {
     };
 })();
 
-document.addEventListener('DOMContentLoaded', SwitchHistory.init);
+document.addEventListener('DOMContentLoaded', window.SwitchHistory.init);
