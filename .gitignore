@@ -1,4 +1,9 @@
 __pycache__/
 *.pyc
-logs
-uploads
+logs/
+static/uploads/
+uploads/
+data/*.db
+data/*.sqlite
+*.db
+*.sqlite
