@@ -1,7 +1,4 @@
 window.SwitchHistory = (() => {
-    const STORAGE_KEY = 'adaptiveSwitchHistory';
-    const MAX_ITEMS = 100;
-
     let records = [];
     let selectedDate = getTodayKey();
 
@@ -14,36 +11,24 @@ window.SwitchHistory = (() => {
         return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     }
 
-    function getClockTime(date) {
-        return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-    }
-
     function formatDateLabel(dateKey) {
         if (!dateKey || !dateKey.includes('-')) return dateKey || '';
         const [year, month, day] = dateKey.split('-');
         return `${day}.${month}.${year}`;
     }
 
+    function formatTime(createdAt) {
+        if (!createdAt || !createdAt.includes(' ')) return createdAt || '';
+        return createdAt.split(' ')[1] || createdAt;
+    }
+
     function escapeHtml(value) {
-        return String(value)
+        return String(value ?? '')
             .replaceAll('&', '&amp;')
             .replaceAll('<', '&lt;')
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
-    }
-
-    function loadRecords() {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            records = raw ? JSON.parse(raw) : [];
-        } catch (error) {
-            records = [];
-        }
-    }
-
-    function saveRecords() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
     }
 
     function openPanel() {
@@ -60,43 +45,74 @@ window.SwitchHistory = (() => {
         return `
             <article class="switch-history-item">
                 <div class="switch-history-time">
-                    <span>${escapeHtml(item.time)}</span>
-                    <span class="switch-history-date">${escapeHtml(formatDateLabel(item.dateKey))}</span>
+                    <span>${escapeHtml(formatTime(item.created_at))}</span>
+                    <span class="switch-history-date">${escapeHtml(formatDateLabel(item.created_date))}</span>
                 </div>
-                <div class="switch-history-row"><strong>Едут машины:</strong> ${escapeHtml(item.activeTransport)}</div>
-                <div class="switch-history-row"><strong>Стоят машины:</strong> ${escapeHtml(item.waitingTransport)}</div>
-                <div class="switch-history-row"><strong>Время:</strong> зелёный ${escapeHtml(item.green)} сек, красный ${escapeHtml(item.red)} сек</div>
-                <div class="switch-history-row"><strong>Пешеходы переходят:</strong> ${escapeHtml(item.activePedestrians)}</div>
-                <div class="switch-history-row"><strong>Пешеходы ждут:</strong> ${escapeHtml(item.waitingPedestrians)}</div>
+                <div class="switch-history-row"><strong>Едут машины:</strong> ${escapeHtml(item.active_street)}</div>
+                <div class="switch-history-row"><strong>Стоят машины:</strong> ${escapeHtml(item.waiting_street)}</div>
+                <div class="switch-history-row"><strong>Время:</strong> зелёный ${escapeHtml(item.green_seconds)} сек, красный ${escapeHtml(item.red_seconds)} сек</div>
+                <div class="switch-history-row"><strong>Пешеходы переходят:</strong> ${escapeHtml(item.pedestrian_active_street)}</div>
+                <div class="switch-history-row"><strong>Пешеходы ждут:</strong> ${escapeHtml(item.pedestrian_waiting_street)}</div>
+                <div class="switch-history-row"><strong>Очереди:</strong> Нагибина ${escapeHtml(item.queue_nagibina)}, Ленина ${escapeHtml(item.queue_lenina)}</div>
+                <div class="switch-history-row"><strong>Приоритеты:</strong> Нагибина ${escapeHtml(Number(item.priority_nagibina || 0).toFixed(2))}, Ленина ${escapeHtml(Number(item.priority_lenina || 0).toFixed(2))}</div>
                 <div class="switch-history-counts">
-                    <span>Верх: ${escapeHtml(item.counts.top)}</span>
-                    <span>Низ: ${escapeHtml(item.counts.bottom)}</span>
-                    <span>Лево: ${escapeHtml(item.counts.left)}</span>
-                    <span>Право: ${escapeHtml(item.counts.right)}</span>
+                    <span>Верх: ${escapeHtml(item.cars_top)}</span>
+                    <span>Низ: ${escapeHtml(item.cars_bottom)}</span>
+                    <span>Лево: ${escapeHtml(item.cars_left)}</span>
+                    <span>Право: ${escapeHtml(item.cars_right)}</span>
                 </div>
             </article>
         `;
     }
 
-    function renderPanel() {
-        const list = document.getElementById('switch-history-list');
-        if (!list) return;
+    function renderRecords(listElement, recordsToRender, emptyText) {
+        if (!listElement) return;
 
-        const filteredRecords = records.filter(item => item.dateKey === selectedDate);
-
-        if (filteredRecords.length === 0) {
-            const isToday = selectedDate === getTodayKey();
-            list.innerHTML = `
-                <div class="switch-history-empty">
-                    ${isToday
-                        ? 'За выбранный день пока нет переключений. Запусти обработку, и новая фаза будет записываться сюда один раз при переключении.'
-                        : 'Для выбранной даты локальных записей нет. После подключения базы данных здесь можно будет смотреть историю за любой день.'}
-                </div>
-            `;
+        if (recordsToRender.length === 0) {
+            listElement.innerHTML = `<div class="history-empty switch-history-empty">${emptyText}</div>`;
             return;
         }
 
-        list.innerHTML = filteredRecords.map(buildRecordHtml).join('');
+        listElement.innerHTML = recordsToRender.map(buildRecordHtml).join('');
+    }
+
+    function renderPanel() {
+        const list = document.getElementById('switch-history-list');
+        const isToday = selectedDate === getTodayKey();
+        const emptyText = isToday
+            ? 'За выбранный день пока нет переключений. Запусти обработку, и новые фазы будут сохраняться в базу данных.'
+            : 'Для выбранной даты записей в базе данных нет.';
+
+        renderRecords(list, records, emptyText);
+    }
+
+    async function loadByDate(dateKey = selectedDate) {
+        selectedDate = dateKey || getTodayKey();
+
+        try {
+            const response = await fetch(`/api/history?date=${encodeURIComponent(selectedDate)}`);
+            const data = await response.json();
+            records = data.records || [];
+        } catch (error) {
+            records = [];
+            console.log('Не удалось загрузить историю переключений из базы данных');
+        }
+
+        renderPanel();
+        renderFullPage(records);
+    }
+
+    async function loadAll() {
+        try {
+            const response = await fetch('/api/history/all?limit=1000');
+            const data = await response.json();
+            records = data.records || [];
+        } catch (error) {
+            records = [];
+            console.log('Не удалось загрузить всю историю переключений из базы данных');
+        }
+
+        renderFullPage(records);
     }
 
     function createPanel() {
@@ -120,7 +136,7 @@ window.SwitchHistory = (() => {
                 <button type="button" id="switch-history-full" class="switch-history-full-button">Вся история переключений</button>
             </div>
             <p class="switch-history-note">
-                Пока база данных не подключена, история хранится локально. При запуске новой обработки и при сбросе симуляции локальная история очищается.
+                История переключений сохраняется в локальную SQLite-базу данных. Сброс симуляции не удаляет записи из базы.
             </p>
             <div id="switch-history-list" class="switch-history-list"></div>
         `;
@@ -135,42 +151,28 @@ window.SwitchHistory = (() => {
             selectedDate = getTodayKey();
             const input = document.getElementById('switch-history-date');
             if (input) input.value = selectedDate;
-            renderPanel();
+            loadByDate(selectedDate);
         });
 
         document.getElementById('switch-history-date')?.addEventListener('change', event => {
             selectedDate = event.target.value || getTodayKey();
-            renderPanel();
+            loadByDate(selectedDate);
         });
 
         document.getElementById('switch-history-full')?.addEventListener('click', () => {
             window.open('/history', '_blank');
         });
 
-        renderPanel();
-    }
-
-    function getRecordsForDate(dateKey) {
-        return records.filter(item => item.dateKey === dateKey);
-    }
-
-    function getSortedRecords() {
-        return [...records].sort((a, b) => {
-            if (a.dateKey === b.dateKey) return b.time.localeCompare(a.time);
-            return b.dateKey.localeCompare(a.dateKey);
-        });
+        loadByDate(selectedDate);
     }
 
     function renderFullPage(recordsToRender) {
         const list = document.getElementById('history-list');
-        if (!list) return;
-
-        if (recordsToRender.length === 0) {
-            list.innerHTML = '<div class="history-empty">Для выбранной даты локальных записей нет. После подключения базы данных здесь будут отображаться сохранённые переключения за выбранный день.</div>';
-            return;
-        }
-
-        list.innerHTML = recordsToRender.map(buildRecordHtml).join('');
+        renderRecords(
+            list,
+            recordsToRender,
+            'Для выбранной даты записей в базе данных нет. После запуска обработки здесь появятся сохранённые переключения.'
+        );
     }
 
     function initFullPage() {
@@ -181,59 +183,44 @@ window.SwitchHistory = (() => {
         document.getElementById('history-today')?.addEventListener('click', () => {
             selectedDate = getTodayKey();
             if (dateInput) dateInput.value = selectedDate;
-            renderFullPage(getRecordsForDate(selectedDate));
+            loadByDate(selectedDate);
         });
 
         dateInput?.addEventListener('change', event => {
             selectedDate = event.target.value || getTodayKey();
-            renderFullPage(getRecordsForDate(selectedDate));
+            loadByDate(selectedDate);
         });
 
-        document.getElementById('history-all')?.addEventListener('click', () => {
-            renderFullPage(getSortedRecords());
-        });
+        document.getElementById('history-all')?.addEventListener('click', loadAll);
 
-        renderFullPage(getRecordsForDate(selectedDate));
+        loadByDate(selectedDate);
     }
 
     function clear() {
-        records = [];
         selectedDate = getTodayKey();
-        saveRecords();
-
         const panelDateInput = document.getElementById('switch-history-date');
         if (panelDateInput) panelDateInput.value = selectedDate;
-
-        renderPanel();
-        renderFullPage(getRecordsForDate(selectedDate));
+        loadByDate(selectedDate);
     }
 
-    function addRecord(record) {
-        const now = new Date();
-        const normalizedRecord = {
-            id: `${now.getTime()}-${records.length}`,
-            dateKey: getTodayKey(),
-            time: getClockTime(now),
-            ...record
-        };
-
-        records.unshift(normalizedRecord);
-        records = records.slice(0, MAX_ITEMS);
-        saveRecords();
-        renderPanel();
+    async function addRecord(record) {
+        try {
+            await fetch('/api/history/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(record)
+            });
+            await loadByDate(selectedDate);
+        } catch (error) {
+            console.log('Не удалось сохранить переключение в базу данных');
+        }
     }
 
     function initMainPage() {
-        if (document.body.dataset.clearHistory === 'true') {
-            clear();
-        }
-
         createPanel();
     }
 
     function init() {
-        loadRecords();
-
         if (document.body.dataset.historyPage === 'true') {
             initFullPage();
         } else {
