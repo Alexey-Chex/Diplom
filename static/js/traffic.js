@@ -420,21 +420,22 @@ async function sendTimerLog() {
 function addSwitchHistoryRecord(plan, data) {
     if (!window.SwitchHistory || !plan || !data || !data.processing_started) return;
 
-    const phase = plan.phase;
-    const waitingPhase = phases[phase].opposite;
-
     window.SwitchHistory.addRecord({
-        activeTransport: phases[phase].label,
-        waitingTransport: phases[waitingPhase].label,
-        green: plan.green,
-        red: plan.red,
-        activePedestrians: pedestrianLabelForPhase(phase),
-        waitingPedestrians: pedestrianLabelForPhase(waitingPhase),
+        active_phase: plan.phase,
+        green_seconds: plan.green,
+        red_seconds: plan.red,
+        yellow_seconds: plan.yellow,
         counts: {
             top: num(data.top),
             bottom: num(data.bottom),
             left: num(data.left),
             right: num(data.right)
+        },
+        metrics: {
+            queue_nagibina: queue(data, 'NS'),
+            queue_lenina: queue(data, 'EW'),
+            priority_nagibina: num(data.priority_ns),
+            priority_lenina: num(data.priority_ew)
         }
     });
 }
