@@ -229,9 +229,6 @@ def history_page():
 
 @app.route('/api/history/switch', methods=['POST'])
 def add_history_switch():
-    if not processing_started:
-        return jsonify({'status': 'ignored', 'message': 'Обработка не запущена'}), 200
-
     switch_data = request.get_json(silent=True) or {}
     saved_record = history_repository.add_switch(switch_data)
     return jsonify({'status': 'ok', 'record': saved_record})
