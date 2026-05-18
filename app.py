@@ -9,6 +9,8 @@ from modules.vehicle_detector import VehicleDetector
 from modules.vehicle_counter import VehicleCounter
 from modules.traffic_analyzer import TrafficLoadAnalyzer
 from modules.adaptive_control import AdaptiveControlModule
+from modules.database import Database
+from modules.history_repository import HistoryRepository
 
 app = Flask(__name__)
 
@@ -32,6 +34,8 @@ adaptive_controller = AdaptiveControlModule(
     weight_wait=0.3,
     saturation_priority=7.0
 )
+database = Database()
+history_repository = HistoryRepository(database)
 
 latest_counts = {direction: 0 for direction in DIRECTIONS}
 available_streams = {direction: False for direction in DIRECTIONS}
@@ -221,6 +225,31 @@ def index():
 @app.route('/history')
 def history_page():
     return render_template('history.html')
+
+
+@app.route('/api/history/switch', methods=['POST'])
+def add_history_switch():
+    if not processing_started:
+        return jsonify({'status': 'ignored', 'message': 'Обработка не запущена'}), 200
+
+    switch_data = request.get_json(silent=True) or {}
+    saved_record = history_repository.add_switch(switch_data)
+    return jsonify({'status': 'ok', 'record': saved_record})
+
+
+@app.route('/api/history')
+def get_history_by_date():
+    date_value = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+    records = history_repository.get_by_date(date_value)
+    return jsonify({'status': 'ok', 'date': date_value, 'records': records})
+
+
+@app.route('/api/history/all')
+def get_all_history():
+    limit = request.args.get('limit', default=500, type=int)
+    limit = max(1, min(limit, 1000))
+    records = history_repository.get_all(limit=limit)
+    return jsonify({'status': 'ok', 'records': records})
 
 
 @app.route('/video_feed/<direction>')
