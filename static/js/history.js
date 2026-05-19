@@ -80,8 +80,8 @@ window.SwitchHistory = (() => {
         const list = document.getElementById('switch-history-list');
         const isToday = selectedDate === getTodayKey();
         const emptyText = isToday
-            ? 'За выбранный день пока нет переключений. Запусти обработку, и новые фазы будут сохраняться в базу данных.'
-            : 'Для выбранной даты записей в базе данных нет.';
+            ? 'За выбранный день пока нет переключений. Запусти обработку, и новые фазы появятся здесь.'
+            : 'Для выбранной даты записей в истории нет.';
 
         renderRecords(list, records, emptyText);
     }
@@ -95,7 +95,7 @@ window.SwitchHistory = (() => {
             records = data.records || [];
         } catch (error) {
             records = [];
-            console.log('Не удалось загрузить историю переключений из базы данных');
+            console.log('Не удалось загрузить историю переключений');
         }
 
         renderPanel();
@@ -109,7 +109,7 @@ window.SwitchHistory = (() => {
             records = data.records || [];
         } catch (error) {
             records = [];
-            console.log('Не удалось загрузить всю историю переключений из базы данных');
+            console.log('Не удалось загрузить всю историю переключений');
         }
 
         renderFullPage(records);
@@ -128,15 +128,17 @@ window.SwitchHistory = (() => {
         panel.id = 'switch-history-panel';
         panel.className = 'switch-history-panel';
         panel.innerHTML = `
-            <button type="button" id="switch-history-close" class="switch-history-close" aria-label="Закрыть историю">›</button>
-            <h2>История переключений</h2>
+            <div class="switch-history-header">
+                <h2>История переключений</h2>
+                <button type="button" id="switch-history-close" class="switch-history-close" aria-label="Закрыть историю">›</button>
+            </div>
             <div class="switch-history-controls">
                 <button type="button" id="switch-history-today">Сегодня</button>
                 <input type="date" id="switch-history-date" value="${selectedDate}">
                 <button type="button" id="switch-history-full" class="switch-history-full-button">Вся история переключений</button>
             </div>
             <p class="switch-history-note">
-                История переключений сохраняется в локальную SQLite-базу данных. Сброс симуляции не удаляет записи из базы.
+                Записи сохраняются в базе данных. Сброс симуляции очищает только текущий экран и не удаляет историю переключений.
             </p>
             <div id="switch-history-list" class="switch-history-list"></div>
         `;
@@ -171,7 +173,7 @@ window.SwitchHistory = (() => {
         renderRecords(
             list,
             recordsToRender,
-            'Для выбранной даты записей в базе данных нет. После запуска обработки здесь появятся сохранённые переключения.'
+            'Для выбранной даты записей нет. После запуска обработки здесь появятся сохранённые переключения.'
         );
     }
 
@@ -212,7 +214,7 @@ window.SwitchHistory = (() => {
             });
             await loadByDate(selectedDate);
         } catch (error) {
-            console.log('Не удалось сохранить переключение в базу данных');
+            console.log('Не удалось сохранить переключение в историю');
         }
     }
 
