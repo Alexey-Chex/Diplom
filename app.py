@@ -18,6 +18,58 @@ UPLOAD_FOLDER = 'static/uploads'
 LOG_FOLDER = 'logs'
 TIMER_LOG_PATH = os.path.join(LOG_FOLDER, 'timer_log.txt')
 
+DEFAULT_VIDEO_FOLDERS = [
+    'videos',
+    'video',
+    'Видео',
+    'видео',
+    'static/videos',
+    'static/video'
+]
+
+VIDEO_EXTENSIONS = ('.mp4', '.avi', '.mov', '.mkv', '.webm')
+
+DIRECTION_VIDEO_KIND = {
+    'top': 'high',
+    'bottom': 'high',
+    'left': 'low',
+    'right': 'low'
+}
+
+DIRECTION_KEYWORDS = {
+    'top': ['top', 'upper', 'up', 'верх', 'верхняя'],
+    'bottom': ['bottom', 'lower', 'down', 'низ', 'нижняя'],
+    'left': ['left', 'левая', 'лево'],
+    'right': ['right', 'правая', 'право']
+}
+
+TRAFFIC_KEYWORDS = {
+    'high': ['high', 'heavy', 'strong', 'dense', 'big', 'много', 'сильн', 'высок', 'больш'],
+    'low': ['low', 'light', 'small', 'little', 'мало', 'слаб', 'низк', 'небольш']
+}
+
+DEFAULT_VIDEO_CANDIDATES = {
+    'high': [
+        'videos/high.mp4',
+        'videos/high_traffic.mp4',
+        'videos/strong_traffic.mp4',
+        'videos/heavy_traffic.mp4',
+        'videos/высокий_трафик.mp4',
+        'videos/сильный_трафик.mp4',
+        'video/high.mp4',
+        'video/high_traffic.mp4'
+    ],
+    'low': [
+        'videos/low.mp4',
+        'videos/low_traffic.mp4',
+        'videos/light_traffic.mp4',
+        'videos/низкий_трафик.mp4',
+        'videos/слабый_трафик.mp4',
+        'video/low.mp4',
+        'video/low_traffic.mp4'
+    ]
+}
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(LOG_FOLDER, exist_ok=True)
 
@@ -39,7 +91,9 @@ simulation_module = SimulationModule(simulation_id=1, scenario_name='adaptive_tr
 
 latest_counts = {direction: 0 for direction in DIRECTIONS}
 available_streams = {direction: False for direction in DIRECTIONS}
+auto_video_paths = {direction: None for direction in DIRECTIONS}
 processing_started = False
+default_simulation_initialized = False
 
 latest_direction_metrics = {}
 latest_phase_metrics = {}
@@ -62,7 +116,64 @@ def get_initial_control_state():
     }
 
 
+def normalize_name(value):
+    return value.lower().replace('_', ' ').replace('-', ' ')
+
+
+def iter_video_files():
+    for folder in DEFAULT_VIDEO_FOLDERS:
+        if not os.path.isdir(folder):
+            continue
+
+        for root, _, files in os.walk(folder):
+            for file_name in files:
+                if file_name.lower().endswith(VIDEO_EXTENSIONS):
+                    yield os.path.join(root, file_name)
+
+
+def find_default_video(direction):
+    traffic_kind = DIRECTION_VIDEO_KIND[direction]
+
+    for candidate in DEFAULT_VIDEO_CANDIDATES[traffic_kind]:
+        if os.path.exists(candidate):
+            return candidate
+
+    direction_words = DIRECTION_KEYWORDS[direction]
+    traffic_words = TRAFFIC_KEYWORDS[traffic_kind]
+    all_videos = list(iter_video_files())
+
+    direction_matches = []
+    traffic_matches = []
+
+    for video_path in all_videos:
+        normalized_path = normalize_name(video_path)
+        has_direction = any(word in normalized_path for word in direction_words)
+        has_traffic_kind = any(word in normalized_path for word in traffic_words)
+
+        if has_direction and has_traffic_kind:
+            return video_path
+
+        if has_direction:
+            direction_matches.append(video_path)
+
+        if has_traffic_kind:
+            traffic_matches.append(video_path)
+
+    if traffic_matches:
+        return traffic_matches[0]
+
+    if direction_matches:
+        return direction_matches[0]
+
+    return None
+
+
 def get_video_path(direction):
+    auto_video_path = auto_video_paths.get(direction)
+
+    if auto_video_path and os.path.exists(auto_video_path):
+        return auto_video_path
+
     return os.path.join(UPLOAD_FOLDER, f'{direction}.mp4')
 
 
@@ -71,6 +182,35 @@ def clear_timer_log():
         log_file.write('Лог таймеров светофоров\n')
         log_file.write('Формат: время, транспортные светофоры, пешеходные светофоры\n')
         log_file.write('=' * 70 + '\n\n')
+
+
+def start_default_simulation():
+    global processing_started, default_simulation_initialized
+
+    found_any_video = False
+
+    for direction in DIRECTIONS:
+        video_path = find_default_video(direction)
+        auto_video_paths[direction] = video_path
+        available_streams[direction] = bool(video_path and os.path.exists(video_path))
+
+        if available_streams[direction]:
+            found_any_video = True
+        else:
+            latest_counts[direction] = 0
+
+    processing_started = found_any_video
+
+    if found_any_video:
+        simulation_module.start_simulation()
+
+        if not default_simulation_initialized:
+            clear_timer_log()
+            default_simulation_initialized = True
+    else:
+        simulation_module.stop_simulation()
+
+    update_control_state()
 
 
 def append_timer_log(log_data):
@@ -117,7 +257,7 @@ def reset_simulation_state(delete_uploaded_files=True):
         available_streams[direction] = False
 
         if delete_uploaded_files:
-            video_path = get_video_path(direction)
+            video_path = os.path.join(UPLOAD_FOLDER, f'{direction}.mp4')
             if os.path.exists(video_path):
                 try:
                     os.remove(video_path)
@@ -189,38 +329,14 @@ def generate_stream(direction):
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    global processing_started
-
-    message = None
-    processed = processing_started
-    clear_history = False
-
-    if request.method == 'POST':
-        processing_started = True
-        simulation_module.start_simulation()
-        processed = True
-        clear_history = True
-        clear_timer_log()
-
-        for direction in DIRECTIONS:
-            file = request.files.get(direction)
-
-            if file and file.filename:
-                save_path = get_video_path(direction)
-                file.save(save_path)
-                available_streams[direction] = True
-            else:
-                available_streams[direction] = False
-                latest_counts[direction] = 0
-
-        update_control_state()
+    start_default_simulation()
 
     return render_template(
         'index.html',
-        processed=processed,
-        message=message,
+        processed=processing_started,
+        message=None,
         available_streams=available_streams,
-        clear_history=clear_history
+        clear_history=False
     )
 
 
@@ -257,7 +373,7 @@ def video_feed(direction):
         return "Неверное направление", 404
 
     if not processing_started or not available_streams.get(direction, False):
-        return "Видео не выбрано", 404
+        return "Видео не найдено", 404
 
     return Response(
         generate_stream(direction),
@@ -268,7 +384,8 @@ def video_feed(direction):
 @app.route('/reset', methods=['POST'])
 def reset():
     reset_simulation_state(delete_uploaded_files=True)
-    return jsonify({'status': 'ok', 'message': 'Симуляция сброшена'})
+    start_default_simulation()
+    return jsonify({'status': 'ok', 'message': 'Симуляция перезапущена'})
 
 
 @app.route('/timer_log', methods=['POST'])
@@ -296,6 +413,9 @@ def download_timer_log():
 
 @app.route('/counts')
 def counts():
+    if not processing_started:
+        start_default_simulation()
+
     response = {
         'processing_started': processing_started,
 
