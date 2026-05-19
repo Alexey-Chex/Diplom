@@ -11,9 +11,7 @@ class AdaptiveControlModule:
         self.min_green = min_green
         self.max_green = max_green
         self.yellow_time = yellow_time
-        self.greenTime = min_green
         self.green_time = min_green
-        self.phaseOrder = ['NS', 'EW']
         self.phase_order = ['NS', 'EW']
         self.weight_queue = weight_queue
         self.weight_wait = weight_wait
@@ -47,8 +45,7 @@ class AdaptiveControlModule:
         ew_green = self._green_time_by_priority(ew_priority)
 
         next_phase = 'NS' if ns_priority >= ew_priority else 'EW'
-        self.greenTime = ns_green if next_phase == 'NS' else ew_green
-        self.green_time = self.greenTime
+        self.green_time = ns_green if next_phase == 'NS' else ew_green
 
         return {
             'phase_order': self.phase_order,
@@ -64,11 +61,5 @@ class AdaptiveControlModule:
             }
         }
 
-    def generateControlParameters(self, phase_metrics):
-        return self.generate_control_parameters(phase_metrics)
-
     def adjust_signal_plan(self, phase_metrics):
         return self.generate_control_parameters(phase_metrics)
-
-    def adjustSignalPlan(self, phase_metrics):
-        return self.adjust_signal_plan(phase_metrics)
