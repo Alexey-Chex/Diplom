@@ -11,9 +11,7 @@ class DatabaseManager:
     }
 
     def __init__(self, db_name='traffic_control.db', connection_string='data/traffic_control.db'):
-        self.dbName = db_name
         self.db_name = db_name
-        self.connectionString = connection_string
         self.connection_string = connection_string
         self._ensure_database_folder()
         self._init_schema()
@@ -157,16 +155,10 @@ class DatabaseManager:
 
         return record
 
-    def saveResults(self, switch_data):
-        return self.save_results(switch_data)
-
     def load_history(self, date_value=None, limit=500):
         if date_value:
             return self.get_history_by_date(date_value)
         return self.get_all_history(limit=limit)
-
-    def loadHistory(self, date_value=None, limit=500):
-        return self.load_history(date_value=date_value, limit=limit)
 
     def get_history_by_date(self, date_value):
         with self._connect() as connection:
