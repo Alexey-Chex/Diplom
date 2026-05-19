@@ -52,14 +52,29 @@
     transform: translateX(0);
 }
 
+.switch-history-header {
+    position: sticky;
+    top: -18px;
+    z-index: 130;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: -18px -18px 12px;
+    padding: 14px 14px 12px 18px;
+    background: rgba(255, 255, 255, 0.98);
+    border-bottom: 1px solid #c8d8ff;
+}
+
 .switch-history-close {
-    position: fixed;
-    top: 50%;
-    right: 398px;
-    transform: translateY(-50%);
-    z-index: 121;
-    width: 46px;
-    height: 46px;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: static !important;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 42px;
+    min-height: 42px;
     padding: 0;
     border: none;
     border-radius: 50%;
@@ -67,14 +82,15 @@
     color: #fff;
     font-size: 30px;
     font-weight: 800;
-    line-height: 46px;
+    line-height: 1;
     text-align: center;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.32);
     cursor: pointer;
+    transform: none !important;
 }
 
 .switch-history-panel h2 {
-    margin: 0 0 12px;
+    margin: 0;
     color: #173b8f;
     font-size: 22px;
     text-align: left;
@@ -93,7 +109,7 @@
     height: 38px;
     box-sizing: border-box;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 18px;
 }
 
 .switch-history-controls button {
@@ -122,7 +138,7 @@
     border-radius: 9px;
     background: #f3f7ff;
     color: #4d5f88;
-    font-size: 13px;
+    font-size: 16px;
     text-align: left;
     line-height: 1.35;
 }
@@ -162,19 +178,19 @@
     margin-bottom: 8px;
     color: #173b8f;
     font-weight: 800;
-    font-size: 16px;
+    font-size: 19px;
 }
 
 .switch-history-date {
     color: #6b7898;
-    font-size: 12px;
+    font-size: 17px;
     font-weight: 600;
 }
 
 .switch-history-row {
     margin: 4px 0;
     color: #26324f;
-    font-size: 13px;
+    font-size: 15px;
     line-height: 1.35;
 }
 
@@ -194,7 +210,7 @@
     border-radius: 7px;
     background: #f3f7ff;
     color: #26324f;
-    font-size: 12px;
+    font-size: 16px;
 }
 
 .history-page-body {
@@ -226,7 +242,7 @@
 .history-subtitle {
     margin: 0 0 18px;
     color: #5b6784;
-    font-size: 14px;
+    font-size: 18px;
 }
 
 .history-page-controls {
@@ -241,7 +257,7 @@
 .history-page-controls input {
     height: 40px;
     border-radius: 9px;
-    font-size: 14px;
+    font-size: 17px;
     box-sizing: border-box;
 }
 
