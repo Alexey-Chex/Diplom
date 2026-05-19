@@ -4,9 +4,7 @@ import cv2
 class VideoData:
     def __init__(self, file_path, direction, video_id=0):
         self.video_id = video_id
-        self.videoId = video_id
         self.file_path = file_path
-        self.filePath = file_path
         self.direction = direction
         self.duration = 0.0
         self.cap = cv2.VideoCapture(file_path)
@@ -27,9 +25,6 @@ class VideoData:
         self._update_duration()
         return self.is_opened()
 
-    def loadVideo(self):
-        return self.load_video()
-
     def is_opened(self):
         return self.cap is not None and self.cap.isOpened()
 
@@ -44,9 +39,6 @@ class VideoData:
         while frame is not None:
             yield frame
             frame = self.get_next_frame()
-
-    def getFrames(self):
-        return self.get_frames()
 
     def reset(self):
         if self.cap is not None:
