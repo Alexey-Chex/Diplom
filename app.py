@@ -9,8 +9,8 @@ from modules.vehicle_detector import VehicleDetector
 from modules.vehicle_counter import VehicleCounter
 from modules.traffic_analyzer import TrafficLoadAnalyzer
 from modules.adaptive_control import AdaptiveControlModule
-from modules.database import Database
-from modules.history_repository import HistoryRepository
+from modules.database_manager import DatabaseManager
+from modules.simulation_module import SimulationModule
 
 app = Flask(__name__)
 
@@ -34,8 +34,8 @@ adaptive_controller = AdaptiveControlModule(
     weight_wait=0.3,
     saturation_priority=7.0
 )
-database = Database()
-history_repository = HistoryRepository(database)
+database_manager = DatabaseManager()
+simulation_module = SimulationModule(simulation_id=1, scenario_name='adaptive_traffic_control')
 
 latest_counts = {direction: 0 for direction in DIRECTIONS}
 available_streams = {direction: False for direction in DIRECTIONS}
@@ -110,6 +110,7 @@ def reset_simulation_state(delete_uploaded_files=True):
     global processing_started, latest_direction_metrics, latest_phase_metrics, latest_control
 
     processing_started = False
+    simulation_module.stop_simulation()
 
     for direction in DIRECTIONS:
         latest_counts[direction] = 0
@@ -196,6 +197,7 @@ def index():
 
     if request.method == 'POST':
         processing_started = True
+        simulation_module.start_simulation()
         processed = True
         clear_history = True
         clear_timer_log()
@@ -230,14 +232,14 @@ def history_page():
 @app.route('/api/history/switch', methods=['POST'])
 def add_history_switch():
     switch_data = request.get_json(silent=True) or {}
-    saved_record = history_repository.add_switch(switch_data)
+    saved_record = database_manager.save_results(switch_data)
     return jsonify({'status': 'ok', 'record': saved_record})
 
 
 @app.route('/api/history')
 def get_history_by_date():
     date_value = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
-    records = history_repository.get_by_date(date_value)
+    records = database_manager.get_history_by_date(date_value)
     return jsonify({'status': 'ok', 'date': date_value, 'records': records})
 
 
@@ -245,7 +247,7 @@ def get_history_by_date():
 def get_all_history():
     limit = request.args.get('limit', default=500, type=int)
     limit = max(1, min(limit, 1000))
-    records = history_repository.get_all(limit=limit)
+    records = database_manager.get_all_history(limit=limit)
     return jsonify({'status': 'ok', 'records': records})
 
 
