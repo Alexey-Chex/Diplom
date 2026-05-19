@@ -7,20 +7,9 @@ class SimulationResult:
     queue_length: float = 0.0
     throughput: float = 0.0
 
-    @property
-    def averageDelay(self) -> float:
-        return self.average_delay
-
-    @property
-    def queueLength(self) -> float:
-        return self.queue_length
-
     def get_simulation_metrics(self):
         return {
-            'averageDelay': self.average_delay,
-            'queueLength': self.queue_length,
+            'average_delay': self.average_delay,
+            'queue_length': self.queue_length,
             'throughput': self.throughput
         }
-
-    def getSimulationMetrics(self):
-        return self.get_simulation_metrics()
