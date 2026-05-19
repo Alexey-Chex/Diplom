@@ -3,14 +3,14 @@ import os
 import cv2
 from datetime import datetime
 
-from modules.video_data import VideoData
-from modules.frame_processor import FrameProcessor
-from modules.vehicle_detector import VehicleDetector
-from modules.vehicle_counter import VehicleCounter
-from modules.traffic_analyzer import TrafficLoadAnalyzer
-from modules.adaptive_control import AdaptiveControlModule
-from modules.database_manager import DatabaseManager
-from modules.simulation_module import SimulationModule
+from modules.VideoData import VideoData
+from modules.FrameProcessor import FrameProcessor
+from modules.VehicleDetector import VehicleDetector
+from modules.VehicleCounter import VehicleCounter
+from modules.TrafficLoadAnalyzer import TrafficLoadAnalyzer
+from modules.AdaptiveControlModule import AdaptiveControlModule
+from modules.DatabaseManager import DatabaseManager
+from modules.SimulationModule import SimulationModule
 
 app = Flask(__name__)
 

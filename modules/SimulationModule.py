@@ -1,4 +1,4 @@
-from modules.simulation_result import SimulationResult
+from modules.SimulationResult import SimulationResult
 
 
 class SimulationModule:

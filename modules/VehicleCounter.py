@@ -1,5 +1,5 @@
 from typing import List
-from modules.detection_result import DetectionResult
+from modules.DetectionResult import DetectionResult
 
 
 class VehicleCounter:

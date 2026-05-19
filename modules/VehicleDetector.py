@@ -1,6 +1,6 @@
 from ultralytics import YOLO
 import cv2
-from modules.detection_result import DetectionResult
+from modules.DetectionResult import DetectionResult
 
 
 class VehicleDetector:
