@@ -6,9 +6,6 @@ from modules.DetectionResult import DetectionResult
 class VehicleDetector:
     def __init__(self, model_path='yolov8n.pt', device='cuda', confidence_threshold: float = 0.4):
         self.model_path = model_path
-        self.modelName = model_path
-        self.model_name = model_path
-        self.confidenceThreshold = confidence_threshold
         self.confidence_threshold = confidence_threshold
         self.model = YOLO(model_path)
         self.device = 0 if device == 'cuda' else 'cpu'
@@ -61,15 +58,9 @@ class VehicleDetector:
 
         return detections
 
-    def detectVehicles(self, frame, resize_dim=(416, 234), conf=None):
-        return self.detect_vehicles(frame, resize_dim=resize_dim, conf=conf)
-
     def filter_detections(self, detections, min_confidence=None):
         threshold = self.confidence_threshold if min_confidence is None else min_confidence
         return [detection for detection in detections if detection.confidence >= threshold]
-
-    def filterDetections(self, detections, min_confidence=None):
-        return self.filter_detections(detections, min_confidence=min_confidence)
 
     def detect_and_draw(self, frame, resize_dim=(416, 234), conf=0.4):
         annotated_frame = frame.copy()
