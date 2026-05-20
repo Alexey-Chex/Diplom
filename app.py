@@ -82,8 +82,6 @@ adaptive_controller = AdaptiveControlModule(
     min_green=10,
     max_green=30,
     yellow_time=3,
-    weight_queue=0.7,
-    weight_wait=0.3,
     saturation_priority=7.0
 )
 database_manager = DatabaseManager()
@@ -239,9 +237,7 @@ def append_timer_log(log_data):
 def update_control_state():
     global latest_direction_metrics, latest_phase_metrics, latest_control
 
-    wait_times = {direction: 0 for direction in DIRECTIONS}
-
-    latest_direction_metrics = traffic_analyzer.analyze_load(latest_counts, wait_times)
+    latest_direction_metrics = traffic_analyzer.analyze_load(latest_counts)
     latest_phase_metrics = traffic_analyzer.calculate_phase_metrics(latest_direction_metrics)
     latest_control = adaptive_controller.generate_control_parameters(latest_phase_metrics)
 
