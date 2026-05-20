@@ -184,6 +184,31 @@ class DatabaseManager:
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
 
+    def get_history_dates(self):
+        with self._connect() as connection:
+            rows = connection.execute(
+                '''
+                SELECT
+                    created_date,
+                    COUNT(*) AS records_count,
+                    MIN(created_at) AS first_created_at,
+                    MAX(created_at) AS last_created_at
+                FROM switch_history
+                GROUP BY created_date
+                ORDER BY created_date DESC
+                '''
+            ).fetchall()
+
+        return [
+            {
+                'created_date': row['created_date'],
+                'records_count': row['records_count'],
+                'first_created_at': row['first_created_at'],
+                'last_created_at': row['last_created_at']
+            }
+            for row in rows
+        ]
+
     def _row_to_dict(self, row):
         return {
             'id': row['id'],
