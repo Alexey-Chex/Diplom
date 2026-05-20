@@ -62,6 +62,79 @@ window.SwitchHistory = (() => {
             .replaceAll("'", '&#039;');
     }
 
+    function timeToMinutes(value) {
+        if (!value || !value.includes(':')) return null;
+        const [hours, minutes] = value.split(':').map(Number);
+
+        if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+            return null;
+        }
+
+        return hours * 60 + minutes;
+    }
+
+    function recordTimeToMinutes(record) {
+        const time = formatTime(record.created_at);
+        return timeToMinutes(time.slice(0, 5));
+    }
+
+    function getTimeFilter() {
+        const from = document.getElementById('history-time-from')?.value || '';
+        const to = document.getElementById('history-time-to')?.value || '';
+
+        return {
+            from,
+            to,
+            fromMinutes: timeToMinutes(from),
+            toMinutes: timeToMinutes(to)
+        };
+    }
+
+    function getTimeFilterText() {
+        const filter = getTimeFilter();
+
+        if (filter.from && filter.to) return `, ${filter.from}–${filter.to}`;
+        if (filter.from) return `, с ${filter.from}`;
+        if (filter.to) return `, до ${filter.to}`;
+        return '';
+    }
+
+    function applyTimeFilter(recordsToFilter) {
+        const filter = getTimeFilter();
+
+        if (filter.fromMinutes === null && filter.toMinutes === null) {
+            return recordsToFilter;
+        }
+
+        return recordsToFilter.filter(record => {
+            const recordMinutes = recordTimeToMinutes(record);
+
+            if (recordMinutes === null) return false;
+            if (filter.fromMinutes !== null && recordMinutes < filter.fromMinutes) return false;
+            if (filter.toMinutes !== null && recordMinutes > filter.toMinutes) return false;
+
+            return true;
+        });
+    }
+
+    function setTimeFilterVisible(isVisible) {
+        const filter = document.getElementById('history-time-filter');
+        if (!filter) return;
+        filter.classList.toggle('hidden', !isVisible);
+    }
+
+    function resetTimeFilter() {
+        const from = document.getElementById('history-time-from');
+        const to = document.getElementById('history-time-to');
+
+        if (from) from.value = '';
+        if (to) to.value = '';
+
+        if (fullPageMode === 'date') {
+            renderFullPage(records);
+        }
+    }
+
     function openPanel() {
         document.getElementById('switch-history-panel')?.classList.add('open');
         document.getElementById('switch-history-toggle')?.classList.add('hidden');
@@ -175,12 +248,12 @@ window.SwitchHistory = (() => {
         }
 
         renderPanel();
-        setFullPageTitle(`Записи за ${formatDateLong(selectedDate)}`);
         renderFullPage(records);
     }
 
     async function loadAll() {
         fullPageMode = 'dates';
+        setTimeFilterVisible(false);
 
         try {
             const response = await fetch('/api/history/dates');
@@ -250,15 +323,23 @@ window.SwitchHistory = (() => {
 
     function renderFullPage(recordsToRender) {
         const list = document.getElementById('history-list');
-        renderRecords(
-            list,
-            recordsToRender,
-            'Для выбранной даты записей нет. После запуска обработки здесь появятся сохранённые переключения.'
-        );
+        if (!list) return;
+
+        setTimeFilterVisible(true);
+        const filteredRecords = applyTimeFilter(recordsToRender);
+        const timeFilterText = getTimeFilterText();
+        const emptyText = timeFilterText
+            ? 'За выбранную дату и указанный период времени записей нет.'
+            : 'Для выбранной даты записей нет. После запуска обработки здесь появятся сохранённые переключения.';
+
+        setFullPageTitle(`Записи за ${formatDateLong(selectedDate)}${timeFilterText}`);
+        renderRecords(list, filteredRecords, emptyText);
     }
 
     function initFullPage() {
         const dateInput = document.getElementById('history-date');
+        const timeFrom = document.getElementById('history-time-from');
+        const timeTo = document.getElementById('history-time-to');
         selectedDate = getTodayKey();
         if (dateInput) dateInput.value = selectedDate;
 
@@ -274,6 +355,11 @@ window.SwitchHistory = (() => {
         });
 
         document.getElementById('history-all')?.addEventListener('click', loadAll);
+        document.getElementById('history-time-apply')?.addEventListener('click', () => renderFullPage(records));
+        document.getElementById('history-time-reset')?.addEventListener('click', resetTimeFilter);
+
+        timeFrom?.addEventListener('change', () => renderFullPage(records));
+        timeTo?.addEventListener('change', () => renderFullPage(records));
 
         loadAll();
     }
