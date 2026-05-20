@@ -279,6 +279,63 @@
     color: #173b8f;
 }
 
+.history-time-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin: -4px 0 18px;
+    padding: 12px;
+    border: 1px solid #c8d8ff;
+    border-radius: 12px;
+    background: #f8faff;
+}
+
+.history-time-filter.hidden {
+    display: none;
+}
+
+.history-time-filter-label {
+    color: #173b8f;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.history-time-filter label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #26324f;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.history-time-filter input {
+    height: 38px;
+    padding: 7px 9px;
+    border: 1px solid #b8c8f5;
+    border-radius: 9px;
+    box-sizing: border-box;
+    color: #173b8f;
+    font-size: 16px;
+}
+
+.history-time-filter button {
+    height: 38px;
+    padding: 8px 14px;
+    border: none;
+    border-radius: 9px;
+    background: #2f6fed;
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.history-time-filter .secondary-button {
+    background: #173b8f;
+}
+
 .history-view-title {
     margin: 4px 0 14px;
     color: #173b8f;
@@ -349,6 +406,17 @@
 
     .history-page-controls {
         grid-template-columns: 1fr;
+    }
+
+    .history-time-filter {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .history-time-filter label,
+    .history-time-filter input,
+    .history-time-filter button {
+        width: 100%;
     }
 
     .history-date-row {
