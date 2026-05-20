@@ -19,6 +19,20 @@
             <button type="button" id="history-all" class="secondary-button">Показать все записи</button>
         </div>
 
+        <div id="history-time-filter" class="history-time-filter hidden">
+            <span class="history-time-filter-label">Период времени:</span>
+            <label>
+                с
+                <input type="time" id="history-time-from">
+            </label>
+            <label>
+                до
+                <input type="time" id="history-time-to">
+            </label>
+            <button type="button" id="history-time-apply">Применить</button>
+            <button type="button" id="history-time-reset" class="secondary-button">Сбросить</button>
+        </div>
+
         <h2 id="history-view-title" class="history-view-title">Дни с сохранёнными переключениями</h2>
         <section id="history-list" class="history-page-list"></section>
     </main>
