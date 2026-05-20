@@ -19,14 +19,12 @@ class SimulationModule:
         adaptive_metrics = adaptive_metrics or {}
         fixed_metrics = fixed_metrics or {}
 
-        adaptive_delay = float(adaptive_metrics.get('average_delay', 0))
-        fixed_delay = float(fixed_metrics.get('average_delay', 0))
         adaptive_queue = float(adaptive_metrics.get('queue_length', 0))
         fixed_queue = float(fixed_metrics.get('queue_length', 0))
         adaptive_throughput = float(adaptive_metrics.get('throughput', 0))
         fixed_throughput = float(fixed_metrics.get('throughput', 0))
 
         return {
-            'adaptive': SimulationResult(adaptive_delay, adaptive_queue, adaptive_throughput),
-            'fixed': SimulationResult(fixed_delay, fixed_queue, fixed_throughput)
+            'adaptive': SimulationResult(adaptive_queue, adaptive_throughput),
+            'fixed': SimulationResult(fixed_queue, fixed_throughput)
         }
