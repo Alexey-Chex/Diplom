@@ -3,26 +3,21 @@ class TrafficLoadAnalyzer:
         self.traffic_density = traffic_density
         self.queue_length = queue_length
 
-    def analyze_load(self, direction_counts, wait_times=None):
-        if wait_times is None:
-            wait_times = {key: 0 for key in direction_counts.keys()}
+    def analyze_load(self, direction_counts):
         metrics = {}
         for direction, count in direction_counts.items():
             metrics[direction] = {
                 'queue_length': count,
-                'traffic_density': count,
-                'wait_time': wait_times.get(direction, 0)
+                'traffic_density': count
             }
         return metrics
 
     def calculate_phase_metrics(self, direction_metrics):
         ns_queue = direction_metrics['top']['queue_length'] + direction_metrics['bottom']['queue_length']
         ew_queue = direction_metrics['left']['queue_length'] + direction_metrics['right']['queue_length']
-        ns_wait = direction_metrics['top']['wait_time'] + direction_metrics['bottom']['wait_time']
-        ew_wait = direction_metrics['left']['wait_time'] + direction_metrics['right']['wait_time']
         return {
-            'NS': {'queue_length': ns_queue, 'wait_time': ns_wait},
-            'EW': {'queue_length': ew_queue, 'wait_time': ew_wait}
+            'NS': {'queue_length': ns_queue},
+            'EW': {'queue_length': ew_queue}
         }
 
     def calculate_metrics(self, direction_metrics):
