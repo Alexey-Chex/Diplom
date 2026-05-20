@@ -359,6 +359,12 @@ def get_history_by_date():
     return jsonify({'status': 'ok', 'date': date_value, 'records': records})
 
 
+@app.route('/api/history/dates')
+def get_history_dates():
+    dates = database_manager.get_history_dates()
+    return jsonify({'status': 'ok', 'dates': dates})
+
+
 @app.route('/api/history/all')
 def get_all_history():
     limit = request.args.get('limit', default=500, type=int)
