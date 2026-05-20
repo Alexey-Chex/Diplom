@@ -1,6 +1,11 @@
 window.SwitchHistory = (() => {
     let records = [];
     let selectedDate = getTodayKey();
+    let fullPageMode = 'date';
+    const monthNames = [
+        'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+        'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+    ];
 
     function pad(value) {
         return String(value).padStart(2, '0');
@@ -17,9 +22,35 @@ window.SwitchHistory = (() => {
         return `${day}.${month}.${year}`;
     }
 
+    function formatDateLong(dateKey) {
+        if (!dateKey || !dateKey.includes('-')) return dateKey || '';
+        const [year, month, day] = dateKey.split('-').map(Number);
+        return `${day} ${monthNames[month - 1]} ${year}`;
+    }
+
     function formatTime(createdAt) {
         if (!createdAt || !createdAt.includes(' ')) return createdAt || '';
         return createdAt.split(' ')[1] || createdAt;
+    }
+
+    function formatTimeRange(item) {
+        const first = formatTime(item.first_created_at);
+        const last = formatTime(item.last_created_at);
+
+        if (!first && !last) return '';
+        if (first === last) return first;
+        return `${first} — ${last}`;
+    }
+
+    function pluralRecords(count) {
+        const value = Number(count) || 0;
+        const lastTwo = value % 100;
+        const last = value % 10;
+
+        if (lastTwo >= 11 && lastTwo <= 14) return `${value} записей`;
+        if (last === 1) return `${value} запись`;
+        if (last >= 2 && last <= 4) return `${value} записи`;
+        return `${value} записей`;
     }
 
     function escapeHtml(value) {
@@ -65,8 +96,23 @@ window.SwitchHistory = (() => {
         `;
     }
 
+    function buildDateRowHtml(item) {
+        const dateKey = item.created_date;
+        return `
+            <button type="button" class="history-date-row" data-date="${escapeHtml(dateKey)}">
+                <span class="history-date-row-main">${escapeHtml(formatDateLong(dateKey))}</span>
+                <span class="history-date-row-meta">
+                    ${escapeHtml(pluralRecords(item.records_count))}${formatTimeRange(item) ? ` · ${escapeHtml(formatTimeRange(item))}` : ''}
+                </span>
+            </button>
+        `;
+    }
+
     function renderRecords(listElement, recordsToRender, emptyText) {
         if (!listElement) return;
+
+        listElement.classList.remove('history-date-list');
+        listElement.classList.add('history-record-grid');
 
         if (recordsToRender.length === 0) {
             listElement.innerHTML = `<div class="history-empty switch-history-empty">${emptyText}</div>`;
@@ -74,6 +120,35 @@ window.SwitchHistory = (() => {
         }
 
         listElement.innerHTML = recordsToRender.map(buildRecordHtml).join('');
+    }
+
+    function renderDateRows(listElement, dateRows) {
+        if (!listElement) return;
+
+        listElement.classList.remove('history-record-grid');
+        listElement.classList.add('history-date-list');
+
+        if (dateRows.length === 0) {
+            listElement.innerHTML = '<div class="history-empty switch-history-empty">В истории пока нет сохранённых переключений.</div>';
+            return;
+        }
+
+        listElement.innerHTML = dateRows.map(buildDateRowHtml).join('');
+
+        listElement.querySelectorAll('.history-date-row').forEach(button => {
+            button.addEventListener('click', () => {
+                const dateKey = button.dataset.date;
+                const dateInput = document.getElementById('history-date');
+                selectedDate = dateKey || getTodayKey();
+                if (dateInput) dateInput.value = selectedDate;
+                loadByDate(selectedDate);
+            });
+        });
+    }
+
+    function setFullPageTitle(value) {
+        const title = document.getElementById('history-view-title');
+        if (title) title.textContent = value;
     }
 
     function renderPanel() {
@@ -88,6 +163,7 @@ window.SwitchHistory = (() => {
 
     async function loadByDate(dateKey = selectedDate) {
         selectedDate = dateKey || getTodayKey();
+        fullPageMode = 'date';
 
         try {
             const response = await fetch(`/api/history?date=${encodeURIComponent(selectedDate)}`);
@@ -99,20 +175,24 @@ window.SwitchHistory = (() => {
         }
 
         renderPanel();
+        setFullPageTitle(`Записи за ${formatDateLong(selectedDate)}`);
         renderFullPage(records);
     }
 
     async function loadAll() {
+        fullPageMode = 'dates';
+
         try {
-            const response = await fetch('/api/history/all?limit=1000');
+            const response = await fetch('/api/history/dates');
             const data = await response.json();
-            records = data.records || [];
+            records = data.dates || [];
         } catch (error) {
             records = [];
-            console.log('Не удалось загрузить всю историю переключений');
+            console.log('Не удалось загрузить список дней истории переключений');
         }
 
-        renderFullPage(records);
+        setFullPageTitle('Дни с сохранёнными переключениями');
+        renderDateRows(document.getElementById('history-list'), records);
     }
 
     function createPanel() {
@@ -195,7 +275,7 @@ window.SwitchHistory = (() => {
 
         document.getElementById('history-all')?.addEventListener('click', loadAll);
 
-        loadByDate(selectedDate);
+        loadAll();
     }
 
     function clear() {
