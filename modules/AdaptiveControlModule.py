@@ -4,8 +4,6 @@ class AdaptiveControlModule:
         min_green=10,
         max_green=30,
         yellow_time=3,
-        weight_queue=0.7,
-        weight_wait=0.3,
         saturation_priority=7.0
     ):
         self.min_green = min_green
@@ -13,12 +11,10 @@ class AdaptiveControlModule:
         self.yellow_time = yellow_time
         self.green_time = min_green
         self.phase_order = ['NS', 'EW']
-        self.weight_queue = weight_queue
-        self.weight_wait = weight_wait
         self.saturation_priority = saturation_priority
 
-    def _phase_priority(self, queue_length, wait_time):
-        return self.weight_queue * queue_length + self.weight_wait * wait_time
+    def _phase_priority(self, queue_length):
+        return queue_length
 
     def _green_time_by_priority(self, priority):
         if priority <= 0:
@@ -32,13 +28,11 @@ class AdaptiveControlModule:
 
     def generate_control_parameters(self, phase_metrics):
         ns_priority = self._phase_priority(
-            phase_metrics['NS']['queue_length'],
-            phase_metrics['NS']['wait_time']
+            phase_metrics['NS']['queue_length']
         )
 
         ew_priority = self._phase_priority(
-            phase_metrics['EW']['queue_length'],
-            phase_metrics['EW']['wait_time']
+            phase_metrics['EW']['queue_length']
         )
 
         ns_green = self._green_time_by_priority(ns_priority)
